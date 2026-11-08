@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+/* Charte Arrondi (Design System v1) : deux thèmes qui suivent le réglage du téléphone. */
+:root {
+  --surface: #F7F5F0;
+  --surface-raised: #FFFFFF;
+  --surface-sunken: #ECE9E1;
+  --ink: #17211E;
+  --ink-muted: #5A6762;
+  --line: #76827C;
+  --primary: #0E6B57;
+  --on-primary: #FFFFFF;
+  --primary-soft: #DCEFE8;
+  --coin: #F2B84B;
+  --warning: #9A4A06;
+  --warning-soft: #FBEBD3;
+  --danger: #B3261E;
+  --danger-soft: #FBE4E1;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #101614;
+    --surface-raised: #1A2320;
+    --surface-sunken: #0B100E;
+    --ink: #EDF3F0;
+    --ink-muted: #9DAEA7;
+    --line: #71847B;
+    --primary: #5CD1AE;
+    --on-primary: #06231B;
+    --primary-soft: #173229;
+    --coin: #F2B84B;
+    --warning: #F0A14B;
+    --warning-soft: #3A2A14;
+    --danger: #FF8A80;
+    --danger-soft: #3E1B19;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-coin: var(--coin);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* Échelle typographique de la charte : taille / interligne / graisse. */
+  --text-amount-xl: 44px;
+  --text-amount-xl--line-height: 48px;
+  --text-amount-xl--letter-spacing: -1px;
+  --text-amount-xl--font-weight: 700;
+  --text-title: 24px;
+  --text-title--line-height: 30px;
+  --text-title--letter-spacing: -0.4px;
+  --text-title--font-weight: 700;
+  --text-heading: 17px;
+  --text-heading--line-height: 24px;
+  --text-heading--font-weight: 600;
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-label--font-weight: 600;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 24px;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Zone sûre de l'iPhone (encoche, barre d'accueil) en mode standalone. */
+  #app {
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Montant : toujours en ink, chiffres tabulaires (charte). */
+  .amount {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .card {
+    background: var(--surface-raised);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--surface-sunken);
+    padding: 16px;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 20px;
+    border-radius: var(--radius-md);
+    background: var(--primary);
+    color: var(--on-primary);
+    font-weight: 600;
+  }
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .btn-primary:disabled,
+  .btn-secondary:disabled {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

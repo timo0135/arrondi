@@ -11,7 +11,7 @@ Usage strictement personnel et familial (10 utilisateurs au plus), hébergé sur
 | Dossier | Rôle |
 | --- | --- |
 | [`api/`](api/README.md) | API REST en Go : moteur d'arrondis, synchronisation bancaire, PostgreSQL |
-| `web/` | PWA Vue 3 (à venir) |
+| [`web/`](web/README.md) | PWA Vue 3 (socle en place) |
 | `api-j1/` | Preuve de concept du jalon J1 (lecture des transactions BoursoBank), conservée pour référence |
 | `Documents/` | Cahier des charges, étude de marché, charte graphique et maquettes (PDF v1) |
 | `docker-compose.dev.yml` | PostgreSQL 18 pour le développement local |
