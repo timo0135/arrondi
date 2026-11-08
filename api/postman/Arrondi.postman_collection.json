@@ -1,0 +1,900 @@
+{
+  "info": {
+    "_postman_id": "7edd8b7e-13e8-4800-89e3-42f11e5d9bc0",
+    "name": "Arrondi API",
+    "description": "API d'Arrondi (cahier des charges, section 7).\n\n**Authentification** : il n'y a pas de route de connexion. En local (`APP_ENV=dev`), l'API te connecte d'office : laisse `cf_access_token` vide. En production, Cloudflare Access protège l'API : récupère un jeton une fois avec `cloudflared access login https://arrondi.timotheebenchergui.fr` puis `cloudflared access token -app=https://arrondi.timotheebenchergui.fr`, colle-le dans la variable d'environnement `cf_access_token` : il est ajouté automatiquement à toutes les requêtes (en-tête `cf-access-token`).\n\n**Automatique** : l'en-tête `X-Requested-With: epargne` est ajouté sur toutes les requêtes qui modifient des données ; les identifiants renvoyés (compte, virement, utilisateur, curseurs, adresse d'autorisation) sont enregistrés dans les variables de la collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Jeton Cloudflare Access (production uniquement).",
+          "const tok = pm.environment.get('cf_access_token');",
+          "if (tok) { pm.request.headers.upsert({ key: 'cf-access-token', value: tok }); }",
+          "// Protection CSRF exigée par l'API sur les requêtes qui modifient des données (section 10).",
+          "if (!['GET', 'HEAD', 'OPTIONS'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'X-Requested-With', value: 'epargne' });",
+          "}",
+          "// Date du jour (heure locale de ton ordinateur) pour les corps de requête.",
+          "const d = new Date(), pad = n => String(n).padStart(2, '0');",
+          "const parts = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());",
+          "pm.collectionVariables.set('today', parts);",
+          "pm.collectionVariables.set('current_month', parts.slice(0, 7));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code === 401) console.warn('401 : jeton Cloudflare Access absent ou expiré (variable cf_access_token).');",
+          "if (pm.response.code === 403) console.warn('403 : email inconnu ou compte désactivé.');",
+          "if (pm.response.code === 429) console.warn('429 : limite atteinte (60 requêtes/min, ou synchro : 1/h et 4/24 h).');"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "today",
+      "value": "",
+      "description": "Mis à jour automatiquement (AAAA-MM-JJ, Europe/Paris)"
+    },
+    {
+      "key": "current_month",
+      "value": "",
+      "description": "Mis à jour automatiquement (AAAA-MM)"
+    },
+    {
+      "key": "account_id",
+      "value": "",
+      "description": "Rempli par « État de la connexion » : compte suivi, sinon premier compte"
+    },
+    {
+      "key": "tx_cursor",
+      "value": "",
+      "description": "Rempli par « Transactions » : curseur de la page suivante"
+    },
+    {
+      "key": "transfers_cursor",
+      "value": "",
+      "description": "Rempli par « Virements » : curseur de la page suivante"
+    },
+    {
+      "key": "transfer_id",
+      "value": "",
+      "description": "Rempli par « Enregistrer un virement »"
+    },
+    {
+      "key": "member_id",
+      "value": "",
+      "description": "Rempli par « Inviter un utilisateur »"
+    },
+    {
+      "key": "auth_url",
+      "value": "",
+      "description": "Rempli par « Démarrer l'autorisation » : adresse à ouvrir dans le navigateur"
+    },
+    {
+      "key": "eb_private_key_pem_json",
+      "value": "",
+      "description": "Calculé automatiquement depuis eb_private_key_pem"
+    },
+    {
+      "key": "callback_query",
+      "value": "",
+      "description": "Calculé automatiquement depuis callback_url"
+    }
+  ],
+  "item": [
+    {
+      "name": "Santé",
+      "description": "",
+      "item": [
+        {
+          "name": "Santé de l'API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/healthz",
+            "description": "Sans authentification. Joignable seulement depuis le réseau Docker en production (non relayée par nginx)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contrat OpenAPI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/openapi.json",
+            "description": "Contrat généré depuis le code ; importable tel quel dans Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Compte",
+      "description": "",
+      "item": [
+        {
+          "name": "Moi",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/me",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('Email présent', () => pm.expect(pm.response.json().email).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Exporter mes données (EF-29)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/me/export",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Supprimer mon compte (EF-30)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/me",
+            "description": "⚠️ Irréversible : supprime le compte et toutes ses données. Le corps est à `false` par sécurité (réponse 422) ; mets `true` pour supprimer réellement.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirm\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 204 ou 422', () => pm.expect(pm.response.code).to.be.oneOf([204, 422]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Épargne",
+      "description": "",
+      "item": [
+        {
+          "name": "Tableau de bord",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/dashboard",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const b = pm.response.json();",
+                  "pm.test('Montants en centimes', () => pm.expect(b.total_saved_cents).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Épargne par mois",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/months?limit=12",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transactions (première page)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transactions?limit=50",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('tx_cursor', b.next_cursor || '');",
+                  "console.log(b.next_cursor ? 'Page suivante disponible (tx_cursor mis à jour).' : 'Dernière page.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transactions (page suivante)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transactions?limit=50&cursor={{tx_cursor}}",
+            "description": "Utilise le curseur enregistré par la requête précédente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('tx_cursor', b.next_cursor || '');",
+                  "console.log(b.next_cursor ? 'Page suivante disponible (tx_cursor mis à jour).' : 'Dernière page.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transactions du mois en cours",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transactions?month={{current_month}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Réglages",
+      "description": "",
+      "item": [
+        {
+          "name": "Lire les réglages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/settings",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modifier les réglages",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/settings",
+            "description": "Palier 50 à 5000 (pas de 50), multiplicateur 1/2/3/5/10, plafond par transaction 100 à 10000 (pas de 100), plafond mensuel null ou 500 à 100000 (pas de 500). Hors plage : 422.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"step_cents\": 100,\n  \"multiplier\": 1,\n  \"tx_cap_cents\": 2000,\n  \"month_cap_cents\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 422', () => pm.expect(pm.response.code).to.be.oneOf([200, 422]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Objectif",
+      "description": "",
+      "item": [
+        {
+          "name": "Lire l'objectif",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/goal",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Définir l'objectif",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/goal",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Apport\",\n  \"target_cents\": 200000,\n  \"target_date\": \"2027-09-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Supprimer l'objectif",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/goal",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 204', () => pm.expect(pm.response.code).to.be.oneOf([204]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Virements",
+      "description": "",
+      "item": [
+        {
+          "name": "Virements (première page)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transfers?limit=50",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('transfers_cursor', b.next_cursor || '');",
+                  "console.log(b.next_cursor ? 'Page suivante disponible (transfers_cursor mis à jour).' : 'Dernière page.');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enregistrer un virement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/transfers",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_cents\": 1500,\n  \"transferred_on\": \"{{today}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "pm.collectionVariables.set('transfer_id', pm.response.json().id);",
+                  "console.log('transfer_id mis à jour');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Supprimer le virement",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transfers/{{transfer_id}}",
+            "description": "Supprime le virement créé par la requête précédente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 204 ou 404', () => pm.expect(pm.response.code).to.be.oneOf([204, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Banque",
+      "description": "",
+      "item": [
+        {
+          "name": "État de la connexion",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/bank/connection",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));",
+                  "if (pm.response.code === 200) {",
+                  "  const accs = pm.response.json().accounts || [];",
+                  "  const acc = accs.find(a => a.is_tracked) || accs[0];",
+                  "  if (acc) { pm.collectionVariables.set('account_id', acc.id); console.log('account_id = ' + acc.id); }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enregistrer mes identifiants Enable Banking",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/bank/credentials",
+            "description": "Remplis `eb_application_id` et `eb_private_key_pem` (contenu complet du fichier .pem) dans l'environnement. La clé est chiffrée côté serveur et n'est jamais renvoyée.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bank_code\": \"boursobank\",\n  \"eb_application_id\": \"{{eb_application_id}}\",\n  \"private_key_pem\": {{eb_private_key_pem_json}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 204 ou 409 ou 422', () => pm.expect(pm.response.code).to.be.oneOf([204, 409, 422]));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Le PEM contient des retours à la ligne : on l'échappe en JSON automatiquement.",
+                  "pm.collectionVariables.set('eb_private_key_pem_json', JSON.stringify(pm.environment.get('eb_private_key_pem') || ''));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Démarrer l'autorisation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/v1/bank/authorizations",
+            "description": "Renvoie l'adresse de la banque (enregistrée dans `auth_url`, aussi affichée dans la console Postman). Ouvre-la dans le navigateur et valide chez la banque.\n\nEn production, la banque te ramène directement sur l'application. **En local**, elle te ramène sur l'adresse de production : copie l'URL complète de la barre d'adresse dans la variable d'environnement `callback_url` et lance « Retour de la banque »."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404 ou 409 ou 422 ou 502', () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 409, 422, 502]));",
+                  "if (pm.response.code === 200) {",
+                  "  const url = pm.response.json().url;",
+                  "  pm.collectionVariables.set('auth_url', url);",
+                  "  console.log('Ouvre cette adresse dans ton navigateur : ' + url);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Retour de la banque (local)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/bank/callback?{{callback_query}}",
+            "description": "Rejoue en local le retour de la banque. `state` n'est valable que 10 minutes et une seule fois."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 302 ou 400', () => pm.expect(pm.response.code).to.be.oneOf([302, 400]));",
+                  "if (pm.response.code === 302) console.log('Redirection : ' + pm.response.headers.get('Location'));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Récupère code et state de l'URL collée dans callback_url.",
+                  "const raw = pm.environment.get('callback_url') || '';",
+                  "const q = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw;",
+                  "pm.collectionVariables.set('callback_query', q);"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "Choisir le compte suivi",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/bank/account",
+            "description": "Utilise `account_id` rempli par « État de la connexion ».",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 204 ou 404 ou 422', () => pm.expect(pm.response.code).to.be.oneOf([204, 404, 422]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lancer une synchronisation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/v1/bank/sync",
+            "description": "1 par heure et 4 sur 24 heures (EF-10). Traitée en arrière-plan : relis le tableau de bord après quelques secondes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 202 ou 404 ou 409 ou 429', () => pm.expect(pm.response.code).to.be.oneOf([202, 404, 409, 429]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Supprimer la connexion (EF-08)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/bank/connection",
+            "description": "⚠️ Supprime la connexion, les comptes, les transactions et les arrondis."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 204', () => pm.expect(pm.response.code).to.be.oneOf([204]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Administration",
+      "description": "",
+      "item": [
+        {
+          "name": "Lister les utilisateurs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/admin/users",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 403', () => pm.expect(pm.response.code).to.be.oneOf([200, 403]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inviter un utilisateur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users",
+            "description": "Le rôle est toujours `member`. Penser à ajouter le même email dans la liste Cloudflare Access.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{new_member_email}}\",\n  \"display_name\": \"Proche\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 201 ou 409 ou 403', () => pm.expect(pm.response.code).to.be.oneOf([201, 409, 403]));",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('member_id', pm.response.json().id); console.log('member_id mis à jour'); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Désactiver l'utilisateur invité",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users/{{member_id}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404 ou 409 ou 403', () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 409, 403]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Réactiver l'utilisateur invité",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/admin/users/{{member_id}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404 ou 403', () => pm.expect(pm.response.code).to.be.oneOf([200, 404, 403]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
