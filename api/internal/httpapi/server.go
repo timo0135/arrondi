@@ -25,7 +25,9 @@ type Server struct {
 	// EBRedirectURL remplace l'URL de retour déduite de PublicBaseURL. En dev, Enable
 	// Banking refuse localhost : on y met l'URL de prod déclarée dans la console.
 	EBRedirectURL string
-	Log           *slog.Logger
+	// Dev ajoute les routes de développement (/dev/...). Jamais en production.
+	Dev bool
+	Log *slog.Logger
 
 	limiter *rateLimiter
 }
@@ -54,6 +56,9 @@ func (s *Server) Handler() http.Handler {
 	s.registerSavings(api)
 	s.registerBank(api)
 	s.registerAdmin(api)
+	if s.Dev {
+		s.registerDev(api)
+	}
 	apiMux.HandleFunc("GET "+prefix+"/bank/callback", s.bankCallback)
 
 	protected := s.authenticate(s.rateLimit(requireAjax(apiMux)))

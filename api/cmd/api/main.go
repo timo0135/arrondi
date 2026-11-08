@@ -119,7 +119,7 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              env("LISTEN_ADDR", ":8080"),
-		Handler:           (&httpapi.Server{App: a, Verifier: verifier, PublicBaseURL: baseURL, EBRedirectURL: env("EB_REDIRECT_URL", ""), Log: log}).Handler(),
+		Handler:           (&httpapi.Server{App: a, Verifier: verifier, PublicBaseURL: baseURL, EBRedirectURL: env("EB_REDIRECT_URL", ""), Dev: env("APP_ENV", "") == "dev", Log: log}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

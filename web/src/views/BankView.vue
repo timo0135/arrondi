@@ -79,6 +79,28 @@ async function syncNow() {
   }
 }
 
+// DEV uniquement (npm run dev + APP_ENV=dev côté API) : reprend 30 jours d'historique.
+const isDev = import.meta.env.DEV
+async function devBackfill() {
+  if (!confirm('DEV : effacer les opérations importées et reprendre les 30 derniers jours ?')) return
+  syncing.value = true
+  try {
+    const res = await fetch('/api/v1/dev/backfill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'epargne' },
+      body: JSON.stringify({ days: 30 }),
+    })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail ?? `HTTP ${res.status}`)
+    toast.show(`${body.inserted} opérations importées, ${body.rounded} arrondies.`)
+    await load()
+  } catch (e) {
+    toast.show(e instanceof Error ? e.message : 'Reprise impossible.', 'error')
+  } finally {
+    syncing.value = false
+  }
+}
+
 const accountSheet = ref(false)
 async function track(id: string) {
   try {
@@ -299,6 +321,9 @@ function goBack() {
 
     <button v-if="conn.status === 'active' || conn.status === 'expiring_soon'" class="btn-secondary" :disabled="syncing || !tracked" @click="syncNow">
       <AppIcon name="sync" :size="20" class="mr-2" />{{ syncing ? 'Lancement…' : 'Synchroniser maintenant' }}
+    </button>
+    <button v-if="isDev && conn.status === 'active'" class="btn-secondary" :disabled="syncing || !tracked" @click="devBackfill">
+      DEV : reprendre 30 jours d’historique
     </button>
     <button class="btn-secondary" @click="editCredentials">Modifier mes identifiants Enable Banking</button>
     <button class="link-danger" @click="disconnectSheet = true">Déconnecter</button>

@@ -239,3 +239,9 @@ Réservé au rôle `admin` (403 sinon).
 | `PATCH /admin/users/{id}` | `{ "is_active": false }` | 200 ; 409 si l'administrateur se désactive lui-même |
 
 Inviter quelqu'un dans l'API ne suffit pas : son email doit aussi être ajouté à la liste autorisée de Cloudflare Access.
+
+## Développement (APP_ENV=dev uniquement)
+
+### `POST /dev/backfill`
+
+Corps `{"days": 30}` (1 à 90). Efface les opérations importées de l'utilisateur, recule la date d'activation de `days` jours et lance tout de suite une synchronisation, sans quota. Réponse : `activated_at`, `fetched`, `inserted`, `rounded`, `saved_cents`. Sert à voir des données sans attendre de nouveaux paiements. La route n'existe pas en production (404). En dev, le bouton « DEV : reprendre 30 jours d'historique » de l'écran Banque l'appelle.

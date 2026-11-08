@@ -334,6 +334,22 @@ func TestAPI_ParcoursComplet(t *testing.T) {
 	}
 	c.expect("DELETE", "/api/v1/me", map[string]any{"confirm": false}, 422)
 
+	// Route de dev : absente sans Dev, reprend l'historique avec Dev.
+	c.expect("POST", "/api/v1/dev/backfill", map[string]any{"days": 30}, 404)
+	sd := &Server{App: a, Verifier: auth.DevVerifier{EmailAddr: email}, PublicBaseURL: "https://arrondi.exemple", Dev: true, Log: log}
+	srvD := httptest.NewServer(sd.Handler())
+	defer srvD.Close()
+	cd := client{t, srvD}
+	cd.expect("POST", "/api/v1/dev/backfill", map[string]any{"days": 91}, 422)
+	fb.items = append(fb.items, item("4", time.Now().AddDate(0, 0, -10).Format(dateFmt), "12.30", "CARTE BOULANGERIE")) // 0,70 × 2 = 1,40
+	bf := decode[struct {
+		Inserted, Rounded int
+		SavedCents        int64 `json:"saved_cents"`
+	}](t, cd.expect("POST", "/api/v1/dev/backfill", map[string]any{"days": 30}, 200))
+	if bf.Inserted != 4 || bf.Rounded != 3 || bf.SavedCents != 312 {
+		t.Fatalf("backfill %+v", bf)
+	}
+
 	// Suppression de la connexion : tout part en cascade.
 	c.expect("DELETE", "/api/v1/bank/connection", nil, 204)
 	if d := decode[DashboardOut](t, c.expect("GET", "/api/v1/dashboard", nil, 200)); d.TotalSavedCents != 0 || d.Bank != nil {
