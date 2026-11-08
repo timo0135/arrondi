@@ -36,6 +36,7 @@ web/
 │   │   └── client.ts    client openapi-fetch : X-Requested-With, erreurs, session expirée
 │   ├── lib/
 │   │   ├── format.ts    montants « 1 284,50 € », dates « 7 nov. 2026 », saisie en euros
+│   │   ├── labels.ts    libellés bancaires lisibles, motifs d'exclusion en français
 │   │   └── useAsync.ts  état de chargement d'un écran
 │   ├── stores/          Pinia (utilisateur connecté)
 │   ├── components/      icônes, barre d'onglets, en-tête, états
@@ -58,11 +59,11 @@ web/
 
 | Route | Écran | État |
 | --- | --- | --- |
-| `/` | E-01 Accueil | Socle (données réelles) |
-| `/operations` | E-02 Opérations | À venir |
+| `/` | E-01 Accueil | ✅ Bandeaux d'état, total, mois, « J'ai viré », objectif, dernière synchro |
+| `/operations` | E-02 Opérations | ✅ Mois par mois, groupées par jour, arrondis et exclusions |
 | `/virements` | E-03 Virements | À venir |
 | `/objectif` | E-04 Objectif | À venir |
-| `/reglages` | E-05 Réglages | Navigation en place |
+| `/reglages` | E-05 Réglages | ✅ Palier, multiplicateur, plafonds |
 | `/reglages/banque` | E-06 Banque (retour de la banque `?status=`) | Messages de retour en place |
 | `/reglages/compte` | E-07 Compte | À venir |
 | `/admin` | E-08 Administration | À venir |
