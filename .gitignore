@@ -1,0 +1,26 @@
+# Secrets : ne jamais commiter
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+session.json
+
+# Sauvegardes et dumps
+*.dump
+*.sql.gz
+*.age
+
+# Go
+/api/bin/
+*.test
+coverage.out
+
+# Front (web/)
+node_modules/
+dist/
+
+# Système / éditeurs
+.DS_Store
+.idea/
+.vscode/
