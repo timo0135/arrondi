@@ -178,6 +178,7 @@ func (s *Server) registerBank(api huma.API) {
 			validity := profile.MaxConsent()
 			aspsps, err := s.App.Bank.ASPSPs(ctx, cr, "FR")
 			if err != nil {
+				s.Log.Warn("bank_aspsps_failed", "user_id", u.ID, "error", err.Error())
 				return fail(bankError(err))
 			}
 			found := false
@@ -194,6 +195,7 @@ func (s *Server) registerBank(api huma.API) {
 			}
 			url, err := s.App.Bank.StartAuth(ctx, cr, c.AspspName, "FR", s.RedirectURL(), state, s.now().Add(validity))
 			if err != nil {
+				s.Log.Warn("bank_auth_start_failed", "user_id", u.ID, "redirect_url", s.RedirectURL(), "error", err.Error())
 				return fail(bankError(err))
 			}
 			s.Log.Info("bank_auth_started", "user_id", u.ID)

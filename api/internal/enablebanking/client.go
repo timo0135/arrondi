@@ -139,6 +139,7 @@ func (c *Client) do(ctx context.Context, cr Credentials, method, path string, bo
 
 // classify traduit un code HTTP en erreur de la section 9.4. Le corps n'est
 // jamais recopié dans l'erreur : il peut contenir des données personnelles.
+// Seuls le code et le message d'un refus (4xx) sont gardés, via ebReason.
 func classify(status int, body []byte) error {
 	switch {
 	case status < 300:
@@ -162,8 +163,25 @@ func classify(status int, body []byte) error {
 		}
 		return ErrCredentials
 	default:
-		return fmt.Errorf("%w : HTTP %d", ErrBadResponse, status)
+		return fmt.Errorf("%w : HTTP %d%s", ErrBadResponse, status, ebReason(body))
 	}
+}
+
+// ebReason extrait le code et le message d'erreur d'Enable Banking (refus de
+// validation, sans données de compte), tronqués, pour les journaux.
+func ebReason(body []byte) string {
+	var e struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &e) != nil || (e.Error == "" && e.Message == "") {
+		return ""
+	}
+	r := strings.TrimSpace(e.Error + " " + e.Message)
+	if len(r) > 200 {
+		r = r[:200]
+	}
+	return " (" + r + ")"
 }
 
 // Item est une transaction lue : la structure décodée et le JSON brut (stocké dans transactions.raw).

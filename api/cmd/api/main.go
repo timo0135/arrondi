@@ -5,6 +5,7 @@
 //	DATABASE_URL            adresse PostgreSQL (secret)
 //	MASTER_KEY_FILE         clé maître de 32 octets (défaut /run/secrets/master_key)
 //	PUBLIC_BASE_URL         https://arrondi.timotheebenchergui.fr
+//	EB_REDIRECT_URL         facultatif, URL de retour envoyée à Enable Banking (dev)
 //	CF_ACCESS_TEAM_DOMAIN   <équipe>.cloudflareaccess.com
 //	CF_ACCESS_AUD           audience de l'application Access
 //	SYNC_CRON               défaut "CRON_TZ=Europe/Paris 30 6 * * *"
@@ -118,7 +119,7 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              env("LISTEN_ADDR", ":8080"),
-		Handler:           (&httpapi.Server{App: a, Verifier: verifier, PublicBaseURL: baseURL, Log: log}).Handler(),
+		Handler:           (&httpapi.Server{App: a, Verifier: verifier, PublicBaseURL: baseURL, EBRedirectURL: env("EB_REDIRECT_URL", ""), Log: log}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

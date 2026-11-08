@@ -22,6 +22,9 @@ type Server struct {
 	App           *app.App
 	Verifier      auth.Verifier
 	PublicBaseURL string // https://arrondi.timotheebenchergui.fr (D-14)
+	// EBRedirectURL remplace l'URL de retour déduite de PublicBaseURL. En dev, Enable
+	// Banking refuse localhost : on y met l'URL de prod déclarée dans la console.
+	EBRedirectURL string
 	Log           *slog.Logger
 
 	limiter *rateLimiter
@@ -30,7 +33,12 @@ type Server struct {
 func (s *Server) now() time.Time { return s.App.Now() }
 
 // RedirectURL est l'URL de retour déclarée dans la console Enable Banking.
-func (s *Server) RedirectURL() string { return s.PublicBaseURL + prefix + "/bank/callback" }
+func (s *Server) RedirectURL() string {
+	if s.EBRedirectURL != "" {
+		return s.EBRedirectURL
+	}
+	return s.PublicBaseURL + prefix + "/bank/callback"
+}
 
 // Handler assemble les routes et les middlewares.
 func (s *Server) Handler() http.Handler {

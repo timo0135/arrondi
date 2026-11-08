@@ -132,8 +132,8 @@ async function authorize() {
   wizardError.value = null
   try {
     await call(api.PUT('/bank/credentials', { body: { bank_code: bankCode.value as 'boursobank', eb_application_id: appId.value.trim(), private_key_pem: pem.value } }))
-    pem.value = '' // la clé ne reste pas dans la page
     const { url } = await call(api.POST('/bank/authorizations'))
+    pem.value = '' // la clé ne reste pas dans la page ; gardée jusque-là pour pouvoir réessayer
     window.location.assign(url)
   } catch (e) {
     wizardError.value = e instanceof ApiError ? e.detail : 'Impossible de joindre le serveur.'

@@ -62,7 +62,8 @@ Variables d'environnement lues au démarrage (`cmd/api/main.go`).
 | Variable | Obligatoire | Défaut | Rôle |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | oui | – | Adresse PostgreSQL (secret en production) |
-| `PUBLIC_BASE_URL` | oui | – | `https://arrondi.timotheebenchergui.fr` ; sert à l'URL de retour de la banque et aux redirections |
+| `PUBLIC_BASE_URL` | oui | – | `https://arrondi.timotheebenchergui.fr` (en dev : `http://localhost:5173`) ; sert à l'URL de retour de la banque et aux redirections |
+| `EB_REDIRECT_URL` | non | `PUBLIC_BASE_URL` + `/api/v1/bank/callback` | URL de retour envoyée à Enable Banking. En dev, mettre l'URL de prod (localhost est refusé), puis remplacer le domaine par `http://localhost:5173` dans la barre d'adresse au retour de la banque |
 | `MASTER_KEY_FILE` | non | `/run/secrets/master_key` | Clé maître de 32 octets (brute, hexadécimale ou base64) qui chiffre les clés privées Enable Banking |
 | `CF_ACCESS_TEAM_DOMAIN` | en production | – | `<équipe>.cloudflareaccess.com` |
 | `CF_ACCESS_AUD` | en production | – | Audience de l'application Cloudflare Access |
