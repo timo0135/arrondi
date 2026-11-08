@@ -1,0 +1,22 @@
+# Base PostgreSQL pour le développement local (pas l'API ni le front, lancés avec go run / npm).
+# Démarrer : docker compose -f docker-compose.dev.yml up -d
+services:
+  db:
+    image: postgres:18
+    container_name: arrondi-db-dev
+    environment:
+      POSTGRES_DB: arrondi
+      POSTGRES_USER: arrondi
+      POSTGRES_PASSWORD: arrondi-dev   # dev uniquement, jamais en production
+      TZ: Europe/Paris
+    ports:
+      - "127.0.0.1:5432:5432"          # accessible depuis le Mac seulement
+    volumes:
+      - arrondi-db-dev:/var/lib/postgresql   # chemin attendu par l'image postgres 18
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arrondi -d arrondi"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  arrondi-db-dev:
