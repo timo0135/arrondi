@@ -115,6 +115,15 @@ func transferOut(t store.Transfer) TransferOut {
 	return TransferOut{ID: t.ID, AmountCents: t.AmountCents, TransferredOn: t.TransferredOn.Format(dateFmt), CreatedAt: t.CreatedAt.UTC()}
 }
 
+// utc : les horodatages sortent toujours en UTC (section 7, conventions).
+func utc(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	u := t.UTC()
+	return &u
+}
+
 // --- curseurs : base64url("AAAA-MM-JJ|uuid") ---
 
 func encodeCursor(day time.Time, id uuid.UUID) *string {
@@ -141,7 +150,7 @@ func decodeCursor(c string) (*time.Time, *uuid.UUID, error) {
 
 // bankState déduit l'état affiché, dont « expire bientôt » (14 jours, section 9.5).
 func bankState(c store.BankConnection, now time.Time) DashboardBank {
-	b := DashboardBank{Status: c.Status, LastSyncOkAt: c.LastSyncOkAt}
+	b := DashboardBank{Status: c.Status, LastSyncOkAt: utc(c.LastSyncOkAt)}
 	if c.ConsentValidUntil != nil {
 		days := int(c.ConsentValidUntil.Sub(now).Hours() / 24)
 		if days < 0 {

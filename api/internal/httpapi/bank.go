@@ -76,8 +76,8 @@ func (s *Server) registerBank(api huma.API) {
 				return nil, err
 			}
 			st := bankState(c, s.now())
-			out := ConnectionOut{BankCode: c.BankCode, ASPSPName: c.AspspName, Status: st.Status, ConsentValidUntil: c.ConsentValidUntil,
-				ExpiresInDays: st.ExpiresInDays, ActivatedAt: c.ActivatedAt, LastSyncAt: c.LastSyncAt, LastSyncOkAt: c.LastSyncOkAt,
+			out := ConnectionOut{BankCode: c.BankCode, ASPSPName: c.AspspName, Status: st.Status, ConsentValidUntil: utc(c.ConsentValidUntil),
+				ExpiresInDays: st.ExpiresInDays, ActivatedAt: utc(c.ActivatedAt), LastSyncAt: utc(c.LastSyncAt), LastSyncOkAt: utc(c.LastSyncOkAt),
 				LastError: c.LastError, Accounts: []AccountOut{}}
 			accs, err := s.App.Q.ListAccounts(ctx, c.ID)
 			if err != nil {
