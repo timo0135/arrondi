@@ -61,9 +61,9 @@ web/
 | --- | --- | --- |
 | `/` | E-01 Accueil | ✅ Bandeaux d'état, total, mois, « J'ai viré », objectif, dernière synchro |
 | `/operations` | E-02 Opérations | ✅ Mois par mois, groupées par jour, arrondis et exclusions |
-| `/virements` | E-03 Virements | À venir |
-| `/objectif` | E-04 Objectif | À venir |
+| `/virements` | E-03 Virements | ✅ Reste à virer, historique 12 mois, virements enregistrés |
+| `/objectif` | E-04 Objectif | ✅ Progression, nom, montant, date facultative |
 | `/reglages` | E-05 Réglages | ✅ Palier, multiplicateur, plafonds |
-| `/reglages/banque` | E-06 Banque (retour de la banque `?status=`) | Messages de retour en place |
-| `/reglages/compte` | E-07 Compte | À venir |
-| `/admin` | E-08 Administration | À venir |
+| `/reglages/banque` | E-06 Banque | ✅ Assistant en 4 étapes, état, compte suivi, synchro, déconnexion ; retour de la banque `?status=` |
+| `/reglages/compte` | E-07 Compte | ✅ Export JSON, suppression avec confirmation |
+| `/admin` | E-08 Administration | ✅ Membres, activation, invitation |
