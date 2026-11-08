@@ -43,7 +43,7 @@ func TestSyncStore_SynchroComplete(t *testing.T) {
 	if _, err := q.CreateDefaultSettings(ctx, user.ID); err != nil {
 		t.Fatal(err)
 	}
-	conn, err := q.CreateConnection(ctx, CreateConnectionParams{
+	conn, err := q.UpsertCredentials(ctx, UpsertCredentialsParams{
 		UserID: user.ID, BankCode: "boursobank", EbApplicationID: "app", EbPrivateKeyEnc: []byte{1},
 		EbKeyNonce: make([]byte, 12), AspspName: "Boursorama Banque",
 	})

@@ -1,26 +1,5 @@
--- name: CreateConnection :one
--- Démarre une autorisation : la connexion reste "pending" jusqu'au callback.
-INSERT INTO bank_connections (user_id, bank_code, eb_application_id, eb_private_key_enc, eb_key_nonce,
-                              aspsp_name, auth_state, auth_state_expires_at)
-VALUES (sqlc.arg(user_id), sqlc.arg(bank_code), sqlc.arg(eb_application_id), sqlc.arg(eb_private_key_enc),
-        sqlc.arg(eb_key_nonce), sqlc.arg(aspsp_name), sqlc.arg(auth_state), sqlc.arg(auth_state_expires_at))
-RETURNING *;
-
 -- name: GetConnectionByUser :one
 SELECT * FROM bank_connections WHERE user_id = $1;
-
--- name: GetConnectionByAuthState :one
--- Callback : l'état doit exister et ne pas être expiré.
-SELECT * FROM bank_connections
-WHERE auth_state = $1 AND auth_state_expires_at > now();
-
--- name: RestartAuthorization :one
--- Ré-autorisation (consentement expiré ou erreur) sur une connexion existante.
-UPDATE bank_connections
-SET auth_state = sqlc.arg(auth_state), auth_state_expires_at = sqlc.arg(auth_state_expires_at),
-    updated_at = now()
-WHERE user_id = sqlc.arg(user_id)
-RETURNING *;
 
 -- name: ActivateConnection :one
 -- Fin du callback : session créée. activated_at n'est fixée qu'au premier succès.

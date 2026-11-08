@@ -26,21 +26,6 @@ VALUES (sqlc.arg(transaction_id), sqlc.arg(user_id), sqlc.arg(step_cents), sqlc.
         sqlc.arg(base_cents), sqlc.arg(gross_cents), sqlc.arg(final_cents), sqlc.narg(limited_by),
         sqlc.arg(month));
 
--- name: ListTransactions :many
--- Historique de l'utilisateur, le plus récent d'abord, pagination par curseur (booked_on, id).
-SELECT t.id, t.booked_on, t.amount_cents, t.direction, t.currency, t.label,
-       t.is_eligible, t.exclusion_reason,
-       r.base_cents, r.gross_cents, r.final_cents, r.limited_by
-FROM transactions t
-JOIN bank_accounts a     ON a.id = t.account_id
-JOIN bank_connections c  ON c.id = a.connection_id
-LEFT JOIN roundings r    ON r.transaction_id = t.id
-WHERE c.user_id = sqlc.arg(user_id)
-  AND (sqlc.narg(before_booked_on)::date IS NULL
-       OR (t.booked_on, t.id) < (sqlc.narg(before_booked_on)::date, sqlc.narg(before_id)::uuid))
-ORDER BY t.booked_on DESC, t.id DESC
-LIMIT sqlc.arg(page_size);
-
 -- name: GetTransaction :one
 -- Lecture d'une transaction en vérifiant qu'elle appartient à l'utilisateur.
 SELECT t.*

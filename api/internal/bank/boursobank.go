@@ -49,3 +49,6 @@ func (BoursoBank) StableID(t RawTransaction) (string, error) {
 }
 
 func (BoursoBank) MaxConsent() time.Duration { return 180 * 24 * time.Hour }
+
+// DefaultASPSPName : BoursoBank n'a qu'un nom ASPSP, l'utilisateur n'a pas à le choisir.
+func (BoursoBank) DefaultASPSPName() string { return "Boursorama Banque" }

@@ -11,21 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const countManualSyncsToday = `-- name: CountManualSyncsToday :one
-SELECT COUNT(*)::integer
-FROM sync_runs
-WHERE connection_id = $1
-  AND started_at >= (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris')
-`
-
-// Limite des lectures non interactives (environ 4 par jour et par banque).
-func (q *Queries) CountManualSyncsToday(ctx context.Context, connectionID uuid.UUID) (int32, error) {
-	row := q.db.QueryRow(ctx, countManualSyncsToday, connectionID)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const finishSyncRun = `-- name: FinishSyncRun :exec
 UPDATE sync_runs
 SET status = $1, finished_at = now(),

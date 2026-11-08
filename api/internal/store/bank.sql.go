@@ -60,62 +60,6 @@ func (q *Queries) ActivateConnection(ctx context.Context, arg ActivateConnection
 	return i, err
 }
 
-const createConnection = `-- name: CreateConnection :one
-INSERT INTO bank_connections (user_id, bank_code, eb_application_id, eb_private_key_enc, eb_key_nonce,
-                              aspsp_name, auth_state, auth_state_expires_at)
-VALUES ($1, $2, $3, $4,
-        $5, $6, $7, $8)
-RETURNING id, user_id, bank_code, eb_application_id, eb_private_key_enc, eb_key_nonce, eb_session_id, aspsp_name, aspsp_country, consent_valid_until, activated_at, status, auth_state, auth_state_expires_at, last_sync_at, last_sync_ok_at, last_error, created_at, updated_at
-`
-
-type CreateConnectionParams struct {
-	UserID             uuid.UUID
-	BankCode           string
-	EbApplicationID    string
-	EbPrivateKeyEnc    []byte
-	EbKeyNonce         []byte
-	AspspName          string
-	AuthState          *string
-	AuthStateExpiresAt *time.Time
-}
-
-// Démarre une autorisation : la connexion reste "pending" jusqu'au callback.
-func (q *Queries) CreateConnection(ctx context.Context, arg CreateConnectionParams) (BankConnection, error) {
-	row := q.db.QueryRow(ctx, createConnection,
-		arg.UserID,
-		arg.BankCode,
-		arg.EbApplicationID,
-		arg.EbPrivateKeyEnc,
-		arg.EbKeyNonce,
-		arg.AspspName,
-		arg.AuthState,
-		arg.AuthStateExpiresAt,
-	)
-	var i BankConnection
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.BankCode,
-		&i.EbApplicationID,
-		&i.EbPrivateKeyEnc,
-		&i.EbKeyNonce,
-		&i.EbSessionID,
-		&i.AspspName,
-		&i.AspspCountry,
-		&i.ConsentValidUntil,
-		&i.ActivatedAt,
-		&i.Status,
-		&i.AuthState,
-		&i.AuthStateExpiresAt,
-		&i.LastSyncAt,
-		&i.LastSyncOkAt,
-		&i.LastError,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const expireConsents = `-- name: ExpireConsents :many
 UPDATE bank_connections
 SET status = 'expired', updated_at = now()
@@ -147,39 +91,6 @@ func (q *Queries) ExpireConsents(ctx context.Context) ([]ExpireConsentsRow, erro
 		return nil, err
 	}
 	return items, nil
-}
-
-const getConnectionByAuthState = `-- name: GetConnectionByAuthState :one
-SELECT id, user_id, bank_code, eb_application_id, eb_private_key_enc, eb_key_nonce, eb_session_id, aspsp_name, aspsp_country, consent_valid_until, activated_at, status, auth_state, auth_state_expires_at, last_sync_at, last_sync_ok_at, last_error, created_at, updated_at FROM bank_connections
-WHERE auth_state = $1 AND auth_state_expires_at > now()
-`
-
-// Callback : l'état doit exister et ne pas être expiré.
-func (q *Queries) GetConnectionByAuthState(ctx context.Context, authState *string) (BankConnection, error) {
-	row := q.db.QueryRow(ctx, getConnectionByAuthState, authState)
-	var i BankConnection
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.BankCode,
-		&i.EbApplicationID,
-		&i.EbPrivateKeyEnc,
-		&i.EbKeyNonce,
-		&i.EbSessionID,
-		&i.AspspName,
-		&i.AspspCountry,
-		&i.ConsentValidUntil,
-		&i.ActivatedAt,
-		&i.Status,
-		&i.AuthState,
-		&i.AuthStateExpiresAt,
-		&i.LastSyncAt,
-		&i.LastSyncOkAt,
-		&i.LastError,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const getConnectionByUser = `-- name: GetConnectionByUser :one
@@ -329,48 +240,6 @@ type RecordSyncAttemptParams struct {
 func (q *Queries) RecordSyncAttempt(ctx context.Context, arg RecordSyncAttemptParams) error {
 	_, err := q.db.Exec(ctx, recordSyncAttempt, arg.Ok, arg.LastError, arg.ID)
 	return err
-}
-
-const restartAuthorization = `-- name: RestartAuthorization :one
-UPDATE bank_connections
-SET auth_state = $1, auth_state_expires_at = $2,
-    updated_at = now()
-WHERE user_id = $3
-RETURNING id, user_id, bank_code, eb_application_id, eb_private_key_enc, eb_key_nonce, eb_session_id, aspsp_name, aspsp_country, consent_valid_until, activated_at, status, auth_state, auth_state_expires_at, last_sync_at, last_sync_ok_at, last_error, created_at, updated_at
-`
-
-type RestartAuthorizationParams struct {
-	AuthState          *string
-	AuthStateExpiresAt *time.Time
-	UserID             uuid.UUID
-}
-
-// Ré-autorisation (consentement expiré ou erreur) sur une connexion existante.
-func (q *Queries) RestartAuthorization(ctx context.Context, arg RestartAuthorizationParams) (BankConnection, error) {
-	row := q.db.QueryRow(ctx, restartAuthorization, arg.AuthState, arg.AuthStateExpiresAt, arg.UserID)
-	var i BankConnection
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.BankCode,
-		&i.EbApplicationID,
-		&i.EbPrivateKeyEnc,
-		&i.EbKeyNonce,
-		&i.EbSessionID,
-		&i.AspspName,
-		&i.AspspCountry,
-		&i.ConsentValidUntil,
-		&i.ActivatedAt,
-		&i.Status,
-		&i.AuthState,
-		&i.AuthStateExpiresAt,
-		&i.LastSyncAt,
-		&i.LastSyncOkAt,
-		&i.LastError,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const setConnectionStatus = `-- name: SetConnectionStatus :exec

@@ -8,13 +8,6 @@ SET status = sqlc.arg(status), finished_at = now(),
     error = sqlc.narg(error)
 WHERE id = sqlc.arg(id);
 
--- name: CountManualSyncsToday :one
--- Limite des lectures non interactives (environ 4 par jour et par banque).
-SELECT COUNT(*)::integer
-FROM sync_runs
-WHERE connection_id = $1
-  AND started_at >= (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris');
-
 -- name: LastSyncRuns :many
 SELECT * FROM sync_runs WHERE connection_id = $1 ORDER BY started_at DESC LIMIT 10;
 

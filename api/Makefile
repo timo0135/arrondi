@@ -2,7 +2,7 @@
 GOOSE = go run github.com/pressly/goose/v3/cmd/goose@v3.26.0
 DB   ?= postgres://arrondi:arrondi-dev@127.0.0.1:5432/arrondi?sslmode=disable
 
-.PHONY: db-up db-down migrate migrate-down migrate-status sqlc test
+.PHONY: db-up db-down migrate migrate-down migrate-status sqlc test run
 
 db-up:            ## démarre PostgreSQL 18 dans Docker
 	docker compose -f ../docker-compose.dev.yml up -d --wait
@@ -25,3 +25,6 @@ sqlc:             ## régénère internal/store depuis db/queries (sqlc dans Doc
 
 test:
 	go test ./...
+
+run:              ## lance l'API en local (charge .env)
+	set -a; . ./.env; set +a; go run ./cmd/api

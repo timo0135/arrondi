@@ -163,3 +163,9 @@ func Find(profiles []Profile, aspspName string) (Profile, bool) {
 	}
 	return nil, false
 }
+
+// DefaultNamer est implémenté par les banques qui n'ont qu'un seul nom ASPSP.
+// Les autres (Crédit Agricole et ses caisses régionales) demandent un choix à l'utilisateur.
+type DefaultNamer interface {
+	DefaultASPSPName() string
+}

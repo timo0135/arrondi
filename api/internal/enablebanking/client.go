@@ -209,3 +209,82 @@ func (c *Client) Transactions(ctx context.Context, cr Credentials, accountUID st
 		key = *res.ContinuationKey
 	}
 }
+
+// ASPSP est une banque listée par GET /aspsps.
+type ASPSP struct {
+	Name                   string   `json:"name"`
+	Country                string   `json:"country"`
+	PSUTypes               []string `json:"psu_types"`
+	MaximumConsentValidity int64    `json:"maximum_consent_validity"` // secondes
+}
+
+// ASPSPs liste les banques d'un pays (section 9.2, étape 2).
+func (c *Client) ASPSPs(ctx context.Context, cr Credentials, country string) ([]ASPSP, error) {
+	var res struct {
+		ASPSPs []ASPSP `json:"aspsps"`
+	}
+	err := c.do(ctx, cr, http.MethodGet, "/aspsps?country="+url.QueryEscape(country), nil, &res)
+	return res.ASPSPs, err
+}
+
+// StartAuth appelle POST /auth et renvoie l'adresse de la banque où rediriger l'utilisateur.
+func (c *Client) StartAuth(ctx context.Context, cr Credentials, aspspName, country, redirectURL, state string, validUntil time.Time) (string, error) {
+	body := map[string]any{
+		"access":       map[string]any{"valid_until": validUntil.UTC().Format(time.RFC3339)},
+		"aspsp":        map[string]any{"name": aspspName, "country": country},
+		"state":        state,
+		"redirect_url": redirectURL,
+		"psu_type":     "personal",
+	}
+	var res struct {
+		URL string `json:"url"`
+	}
+	if err := c.do(ctx, cr, http.MethodPost, "/auth", body, &res); err != nil {
+		return "", err
+	}
+	if res.URL == "" {
+		return "", fmt.Errorf("%w : pas d'url dans la réponse de /auth", ErrBadResponse)
+	}
+	return res.URL, nil
+}
+
+// Session est le résultat de POST /sessions.
+type Session struct {
+	ID         string
+	ValidUntil time.Time
+	Accounts   []bank.RawAccount
+	IBANs      map[string]string // uid → IBAN (pour en garder les 4 derniers caractères)
+	Currencies map[string]string // uid → devise du compte, "" si inconnue
+}
+
+// CreateSession échange le code reçu au retour de la banque contre une session.
+func (c *Client) CreateSession(ctx context.Context, cr Credentials, code string) (Session, error) {
+	var res struct {
+		SessionID string `json:"session_id"`
+		Access    struct {
+			ValidUntil time.Time `json:"valid_until"`
+		} `json:"access"`
+		Accounts []struct {
+			bank.RawAccount
+			Currency  string `json:"currency"`
+			AccountID struct {
+				IBAN *string `json:"iban"`
+			} `json:"account_id"`
+		} `json:"accounts"`
+	}
+	if err := c.do(ctx, cr, http.MethodPost, "/sessions", map[string]any{"code": code}, &res); err != nil {
+		return Session{}, err
+	}
+	if res.SessionID == "" {
+		return Session{}, fmt.Errorf("%w : pas de session_id", ErrBadResponse)
+	}
+	s := Session{ID: res.SessionID, ValidUntil: res.Access.ValidUntil, IBANs: map[string]string{}, Currencies: map[string]string{}}
+	for _, a := range res.Accounts {
+		s.Accounts = append(s.Accounts, a.RawAccount)
+		if a.AccountID.IBAN != nil {
+			s.IBANs[a.UID] = *a.AccountID.IBAN
+		}
+		s.Currencies[a.UID] = a.Currency
+	}
+	return s, nil
+}

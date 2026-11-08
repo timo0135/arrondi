@@ -1,6 +1,7 @@
 # Secrets : ne jamais commiter
 *.pem
 *.key
+master_key*
 .env
 .env.*
 !.env.example
