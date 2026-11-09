@@ -67,3 +67,27 @@ web/
 | `/reglages/banque` | E-06 Banque | ✅ Assistant en 4 étapes, état, compte suivi, synchro, déconnexion ; retour de la banque `?status=` |
 | `/reglages/compte` | E-07 Compte | ✅ Export JSON, suppression avec confirmation |
 | `/admin` | E-08 Administration | ✅ Membres, activation, invitation |
+
+## Version ordinateur (D-20 à D-23)
+
+Mêmes routes, autre mise en page, choisie en CSS et par `useDesktop()` / `useTablet()` / `useWide()` (`src/lib/useDesktop.ts`) :
+
+| Largeur | Mise en page |
+| --- | --- |
+| < 768 px | Téléphone : une colonne, onglets en bas (écrans E-01 à E-08) |
+| 768 à 1 023 px | Onglets en bas, contenu sur 720 px ; l'accueil devient le tableau de bord |
+| ≥ 1 024 px | Barre latérale (`SideNav`), contenu en grille jusqu'à 1 240 px, sous-navigation des réglages (`SettingsNav`), feuilles du bas en boîtes de dialogue centrées |
+| ≥ 1 280 px | Le détail d'une opération s'ouvre dans un panneau à droite au lieu d'une boîte de dialogue |
+
+| Route | Écran | Sur ordinateur |
+| --- | --- | --- |
+| `/` | D-01 Tableau de bord | 4 indicateurs, épargne par mois (`BarChart`), le mois en chiffres, dernières opérations, où tu arrondis le plus |
+| `/operations` | D-02 Opérations | Totaux du mois, filtre Toutes / Arrondies / Exclues, recherche (touche `/`), tableau, détail du calcul (`TxDetail`, Échap pour fermer), export CSV |
+| `/virements` | D-03 Virements | Épargné et viré sur 6 mois, tableau par mois, formulaire prérempli affiché en place |
+| `/objectif` | D-04 Objectif | Indicateurs, courbe cumulée avec projection (`GoalChart`), formulaire à droite |
+| `/reglages` | D-05 Réglages | Brouillon et aperçu (`GET /settings/preview`), enregistrement au clic sur « Enregistrer » |
+| `/reglages/banque` | D-06 Banque | Connexion, compte suivi, 10 dernières synchronisations |
+| `/reglages/compte` | D-07 Mon compte | Contenu de E-07 avec la sous-navigation |
+| `/admin` | D-08 Administration | Compteurs, tableau des membres, ajout en place, jamais de montant |
+
+Graphiques : SVG faits maison, sans bibliothèque (D-22), avec texte alternatif et valeur exacte au survol ou au clavier. La version ordinateur ajoute environ 19 Ko gzip au total (budget : 25 Ko).

@@ -5,6 +5,7 @@ import { api, ApiError, call } from '@/api/client'
 import { useSession } from '@/stores/session'
 import { useToast } from '@/stores/toast'
 import PageTitle from '@/components/PageTitle.vue'
+import SettingsNav from '@/components/SettingsNav.vue'
 import TextField from '@/components/TextField.vue'
 
 const session = useSession()
@@ -46,14 +47,16 @@ async function deleteAccount() {
 </script>
 
 <template>
-  <div v-if="deleted" class="mx-4 mt-8 flex flex-col gap-3 text-center">
+  <div v-if="deleted" class="mx-4 lg:mx-0 mt-8 flex flex-col gap-3 text-center">
     <h1 class="text-title">Compte supprimé</h1>
     <p class="text-ink-muted">Toutes tes données ont été effacées. Tu peux fermer l’application.</p>
   </div>
 
   <template v-else>
-    <PageTitle title="Compte" back="/reglages" />
-    <div class="mx-4 flex flex-col gap-6">
+    <PageTitle title="Mon compte" back="/reglages" />
+    <div class="lg:flex lg:items-start lg:gap-6">
+    <SettingsNav />
+    <div class="mx-4 flex flex-col gap-6 lg:mx-0 lg:max-w-[720px] lg:flex-1">
       <section class="card flex flex-col gap-1">
         <p class="text-heading">{{ session.me?.display_name }}</p>
         <p class="text-ink-muted">{{ session.me?.email }}</p>
@@ -75,6 +78,7 @@ async function deleteAccount() {
           {{ deleting ? 'Suppression…' : 'Supprimer mon compte' }}
         </button>
       </section>
+    </div>
     </div>
   </template>
 </template>

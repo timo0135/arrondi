@@ -7,6 +7,8 @@ import { useAsync } from '@/lib/useAsync'
 import { useReconnect } from '@/lib/useReconnect'
 import { useToast } from '@/stores/toast'
 import BrandHeader from '@/components/BrandHeader.vue'
+import DesktopDashboard from '@/components/DesktopDashboard.vue'
+import { useTablet } from '@/lib/useDesktop'
 import LoadState from '@/components/LoadState.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 import RoundingPill from '@/components/RoundingPill.vue'
@@ -16,6 +18,8 @@ const dash = useAsync(() => call(api.GET('/dashboard')))
 onMounted(dash.run)
 const { busy, reconnect } = useReconnect()
 const toast = useToast()
+// Tableau de bord dès 768 px (D-20) : indicateurs sur 2 colonnes puis graphiques.
+const isDesktop = useTablet()
 
 const banner = computed(() => {
   const b = dash.data.value?.bank
@@ -57,9 +61,25 @@ async function markTransferred() {
 </script>
 
 <template>
-  <BrandHeader />
+  <BrandHeader class="lg:hidden" />
   <LoadState :loading="dash.loading.value && !dash.data.value" :error="dash.error.value" @retry="dash.run">
-    <div v-if="dash.data.value" class="mx-4 flex flex-col gap-6">
+    <StatusBanner
+      v-if="isDesktop && banner && dash.data.value"
+      class="mx-4 mb-6 lg:mx-0"
+      :tone="banner.tone"
+      :text="banner.text"
+      :action="banner.action"
+      :busy="busy"
+      @act="reconnect"
+    />
+    <DesktopDashboard
+      v-if="isDesktop && dash.data.value"
+      :dash="dash.data.value"
+      :transferring="transferring"
+      @transferred="markTransferred"
+      @refresh="dash.run"
+    />
+    <div v-else-if="dash.data.value" class="mx-4 flex flex-col gap-6">
       <StatusBanner v-if="banner" :tone="banner.tone" :text="banner.text" :action="banner.action" :busy="busy" @act="reconnect" />
 
       <section class="rounded-[var(--radius-md)] bg-primary p-4 text-on-primary">

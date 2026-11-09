@@ -6,7 +6,7 @@ defineEmits<{ retry: [] }>()
 </script>
 
 <template>
-  <div v-if="error" class="card mx-4 flex flex-col items-start gap-3 border-danger bg-danger-soft" role="alert">
+  <div v-if="error" class="card mx-4 lg:mx-0 flex flex-col items-start gap-3 border-danger bg-danger-soft" role="alert">
     <p class="flex items-center gap-2 text-danger"><AppIcon name="alert" :size="20" />{{ error }}</p>
     <button class="btn-secondary" @click="$emit('retry')">Réessayer</button>
   </div>

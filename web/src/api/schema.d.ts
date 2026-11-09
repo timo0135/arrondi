@@ -125,6 +125,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bank/sync-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dernières synchronisations (EF-43) */
+        get: operations["list-sync-runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard": {
         parameters: {
             query?: never;
@@ -136,6 +153,26 @@ export interface paths {
         get: operations["get-dashboard"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dev/backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * DEV : reculer la date d'activation et réimporter l'historique
+         * @description Efface les opérations importées de l'utilisateur, recule activated_at de `days` jours et lance une synchronisation immédiate, sans quota. Route absente en production.
+         */
+        post: operations["dev-backfill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -231,6 +268,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aperçu de réglages, sans les enregistrer (EF-42) */
+        get: operations["preview-settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stats/month": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chiffres d'un mois (EF-38) */
+        get: operations["get-month-stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions": {
         parameters: {
             query?: never;
@@ -240,6 +311,40 @@ export interface paths {
         };
         /** Transactions et leurs arrondis, de la plus récente à la plus ancienne */
         get: operations["list-transactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transactions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exporter les opérations d'un mois en CSV (EF-44) */
+        get: operations["export-month-csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Une transaction et le détail de son arrondi (EF-40) */
+        get: operations["get-transaction"];
         put?: never;
         post?: never;
         delete?: never;
@@ -312,10 +417,17 @@ export interface components {
             readonly $schema?: string;
             /** @description pending, active, expired, error, ou null sans connexion */
             connection_status: string | null;
+            /**
+             * Format: date-time
+             * @description Fin de l'accès bancaire ; null sans connexion active
+             */
+            consent_valid_until: string | null;
             display_name: string;
             email: string;
             id: string;
             is_active: boolean;
+            /** Format: date-time */
+            last_sync_ok_at: string | null;
             /** @enum {string} */
             role: "admin" | "member";
         };
@@ -328,6 +440,38 @@ export interface components {
             readonly $schema?: string;
             /** @description Adresse de la banque où rediriger l'utilisateur */
             url: string;
+        };
+        BackfillInBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/BackfillInBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Nombre de jours à reprendre (90 au plus : au-delà, la banque exige une nouvelle authentification)
+             * @default 30
+             */
+            days: number;
+        };
+        BackfillOutBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/BackfillOutBody.json
+             */
+            readonly $schema?: string;
+            /** Format: date-time */
+            activated_at: string;
+            /** Format: int64 */
+            fetched: number;
+            /** Format: int64 */
+            inserted: number;
+            /** Format: int64 */
+            rounded: number;
+            /** Format: int64 */
+            saved_cents: number;
         };
         ConnectionOut: {
             /**
@@ -402,6 +546,8 @@ export interface components {
             status: "pending" | "active" | "expiring_soon" | "expired" | "error";
         };
         DashboardGoal: {
+            /** @description AAAA-MM où l'objectif serait atteint au rythme actuel (EF-41) ; null sans estimation */
+            estimated_month: string | null;
             name: string;
             /** Format: int64 */
             progress_percent: number;
@@ -528,6 +674,38 @@ export interface components {
             /** Format: date */
             target_date?: string | null;
         };
+        GoalOut: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/GoalOut.json
+             */
+            readonly $schema?: string;
+            /** @description AAAA-MM où la cible serait atteinte à ce rythme ; null sans estimation */
+            estimated_month: string | null;
+            /**
+             * Format: int64
+             * @description Moyenne des 3 derniers mois complets ; null s'il n'y a encore aucun mois complet
+             */
+            monthly_pace_cents: number | null;
+            name: string;
+            /**
+             * Format: int64
+             * @description Total épargné à ce jour
+             */
+            saved_cents: number;
+            /** Format: int64 */
+            target_cents: number;
+            /** Format: date */
+            target_date?: string | null;
+        };
+        MerchantOut: {
+            /** Format: int32 */
+            count: number;
+            merchant: string;
+            /** Format: int64 */
+            saved_cents: number;
+        };
         MonthOut: {
             /** @description AAAA-MM */
             month: string;
@@ -537,6 +715,61 @@ export interface components {
             transactions_count: number;
             /** Format: int64 */
             transferred_cents: number;
+        };
+        MonthStatsOut: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/MonthStatsOut.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Arrondi gardé moyen des paiements arrondis
+             */
+            average_rounding_cents: number;
+            /**
+             * Format: int32
+             * @description Arrondis limités par un plafond
+             */
+            capped_count: number;
+            /**
+             * Format: int32
+             * @description Paiements carte éligibles
+             */
+            card_payments_count: number;
+            /**
+             * Format: int64
+             * @description Somme des paiements carte éligibles
+             */
+            card_spending_cents: number;
+            /** @description Nombre d'opérations exclues par raison (section 4.2) */
+            excluded_by_reason: {
+                [key: string]: number;
+            };
+            /** Format: int32 */
+            excluded_count: number;
+            /** @description AAAA-MM */
+            month: string;
+            /**
+             * Format: int64
+             * @description Mois en cours : épargne du mois précédent jusqu'au même jour ; mois passé : épargne de tout le mois précédent
+             */
+            previous_month_same_day_cents: number;
+            /**
+             * Format: int32
+             * @description Paiements dont l'arrondi gardé est supérieur à 0
+             */
+            rounded_count: number;
+            /** Format: int64 */
+            saved_cents: number;
+            /** @description 5 commerçants au plus fort arrondi cumulé (D-23) */
+            top_merchants: components["schemas"]["MerchantOut"][] | null;
+            /**
+             * Format: int32
+             * @description Toutes les opérations du mois
+             */
+            transactions_count: number;
         };
         PageOutTransactionOut: {
             /**
@@ -569,6 +802,47 @@ export interface components {
             readonly $schema?: string;
             is_active: boolean;
         };
+        PreviewExample: {
+            /** Format: int64 */
+            amount_cents: number;
+            /** Format: int64 */
+            base_cents: number;
+            /**
+             * Format: int64
+             * @description Sans tenir compte du plafond mensuel
+             */
+            final_cents: number;
+            /** @description tx_cap ou null */
+            limited_by: string | null;
+            /** Format: int64 */
+            multiplied_cents: number;
+        };
+        PreviewLastMonth: {
+            /**
+             * Format: int64
+             * @description Ce qui a vraiment été épargné ce mois-là
+             */
+            actual_saved_cents: number;
+            /** Format: int32 */
+            card_payments_count: number;
+            /** @description AAAA-MM, dernier mois complet */
+            month: string;
+            /**
+             * Format: int64
+             * @description Ce que ces réglages auraient donné
+             */
+            saved_cents: number;
+        };
+        PreviewOut: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/PreviewOut.json
+             */
+            readonly $schema?: string;
+            example: components["schemas"]["PreviewExample"];
+            last_month: components["schemas"]["PreviewLastMonth"];
+        };
         RoundingOut: {
             /** Format: int32 */
             base_cents: number;
@@ -578,6 +852,16 @@ export interface components {
             gross_cents: number;
             /** @description tx_cap, monthly ou null */
             limited_by: string | null;
+            /**
+             * Format: int32
+             * @description Multiplicateur en vigueur au moment du calcul
+             */
+            multiplier: number;
+            /**
+             * Format: int32
+             * @description Palier en vigueur au moment du calcul
+             */
+            step_cents: number;
         };
         SettingsBody: {
             /**
@@ -617,7 +901,29 @@ export interface components {
             /** @enum {string} */
             status: "accepted";
         };
+        SyncRunOut: {
+            /** @description Code d'erreur sans donnée personnelle ; null si la synchro a réussi */
+            error_code: string | null;
+            /** Format: int32 */
+            fetched: number;
+            /** Format: date-time */
+            finished_at: string | null;
+            /** Format: int32 */
+            inserted: number;
+            /** Format: date-time */
+            started_at: string;
+            /** @enum {string} */
+            status: "running" | "success" | "error";
+            /** @enum {string} */
+            trigger: "scheduled" | "manual";
+        };
         TransactionOut: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example /api/v1/schemas/TransactionOut.json
+             */
+            readonly $schema?: string;
             /** Format: int64 */
             amount_cents: number;
             booked_on: string;
@@ -627,7 +933,10 @@ export interface components {
             exclusion_reason: string | null;
             id: string;
             is_eligible: boolean;
+            /** @description Libellé brut de la banque */
             label: string;
+            /** @description Nom du commerçant tiré du libellé (D-23) */
+            merchant: string;
             rounding: components["schemas"]["RoundingOut"];
         };
         TransferOut: {
@@ -939,6 +1248,37 @@ export interface operations {
             };
         };
     };
+    "list-sync-runs": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRunOut"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-dashboard": {
         parameters: {
             query?: never;
@@ -968,6 +1308,39 @@ export interface operations {
             };
         };
     };
+    "dev-backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackfillInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackfillOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-goal": {
         parameters: {
             query?: never;
@@ -983,7 +1356,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GoalBody"];
+                    "application/json": components["schemas"]["GoalOut"];
                 };
             };
             /** @description Error */
@@ -1016,7 +1389,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GoalBody"];
+                    "application/json": components["schemas"]["GoalOut"];
                 };
             };
             /** @description Error */
@@ -1240,11 +1613,84 @@ export interface operations {
             };
         };
     };
+    "preview-settings": {
+        parameters: {
+            query: {
+                step_cents: number;
+                multiplier: number;
+                tx_cap_cents: number;
+                /** @description 0 ou absent = aucun plafond mensuel */
+                month_cap_cents?: number;
+                /** @description Montant d'essai */
+                amount_cents?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-month-stats": {
+        parameters: {
+            query?: {
+                /** @description AAAA-MM ; mois en cours par défaut */
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthStatsOut"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-transactions": {
         parameters: {
             query?: {
                 /** @description AAAA-MM */
                 month?: string;
+                /** @description rounded : transactions éligibles ; excluded : les autres (EF-39) */
+                status?: "all" | "rounded" | "excluded";
+                /** @description Texte cherché dans le libellé, sans tenir compte des accents ni de la casse ; 2 caractères au moins */
+                q?: string;
                 limit?: number;
                 cursor?: string;
             };
@@ -1261,6 +1707,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageOutTransactionOut"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "export-month-csv": {
+        parameters: {
+            query: {
+                /** @description AAAA-MM */
+                month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    "Content-Type"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-transaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionOut"];
                 };
             };
             /** @description Error */
