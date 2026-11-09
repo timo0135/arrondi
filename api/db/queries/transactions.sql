@@ -6,9 +6,9 @@ SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(user_id)::uuid::text, 0))
 -- name: InsertTransaction :one
 -- Idempotent : une transaction déjà connue n'est pas réinsérée (aucune ligne renvoyée).
 INSERT INTO transactions (account_id, external_id, booked_on, amount_cents, direction, currency,
-                          label, bank_tx_code, is_eligible, exclusion_reason, raw)
+                          label, merchant, bank_tx_code, is_eligible, exclusion_reason, raw)
 VALUES (sqlc.arg(account_id), sqlc.arg(external_id), sqlc.arg(booked_on), sqlc.arg(amount_cents),
-        sqlc.arg(direction), sqlc.arg(currency), sqlc.arg(label), sqlc.narg(bank_tx_code),
+        sqlc.arg(direction), sqlc.arg(currency), sqlc.arg(label), sqlc.arg(merchant), sqlc.narg(bank_tx_code),
         sqlc.arg(is_eligible), sqlc.narg(exclusion_reason), sqlc.arg(raw))
 ON CONFLICT (account_id, external_id) DO NOTHING
 RETURNING id;

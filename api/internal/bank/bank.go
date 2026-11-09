@@ -45,6 +45,7 @@ type Transaction struct {
 	Debit       bool
 	Currency    string
 	Label       string // première ligne du libellé
+	Merchant    string // nom du commerçant tiré du libellé (D-23)
 	IsCard      bool   // paiement par carte selon la règle de la banque (D-06)
 }
 
@@ -120,6 +121,7 @@ func Normalize(p Profile, t RawTransaction) (Transaction, error) {
 		Debit:       debit,
 		Currency:    t.TransactionAmount.Currency,
 		Label:       label,
+		Merchant:    MerchantOf(p, label),
 		IsCard:      p.IsCardPayment(t),
 	}, nil
 }

@@ -23,6 +23,7 @@ type DashboardGoal struct {
 	TargetCents     int64   `json:"target_cents"`
 	ProgressPercent int     `json:"progress_percent"`
 	TargetDate      *string `json:"target_date"`
+	EstimatedMonth  *string `json:"estimated_month" doc:"AAAA-MM où l'objectif serait atteint au rythme actuel (EF-41) ; null sans estimation"`
 }
 
 type DashboardBank struct {
@@ -49,6 +50,8 @@ type MonthOut struct {
 }
 
 type RoundingOut struct {
+	StepCents  int32   `json:"step_cents" doc:"Palier en vigueur au moment du calcul"`
+	Multiplier int32   `json:"multiplier" doc:"Multiplicateur en vigueur au moment du calcul"`
 	BaseCents  int32   `json:"base_cents"`
 	GrossCents int64   `json:"gross_cents"`
 	FinalCents int64   `json:"final_cents"`
@@ -61,7 +64,8 @@ type TransactionOut struct {
 	AmountCents     int64        `json:"amount_cents"`
 	Direction       string       `json:"direction" enum:"debit,credit"`
 	Currency        string       `json:"currency"`
-	Label           string       `json:"label"`
+	Label           string       `json:"label" doc:"Libellé brut de la banque"`
+	Merchant        string       `json:"merchant" doc:"Nom du commerçant tiré du libellé (D-23)"`
 	IsEligible      bool         `json:"is_eligible"`
 	ExclusionReason *string      `json:"exclusion_reason"`
 	Rounding        *RoundingOut `json:"rounding"`
@@ -83,6 +87,14 @@ type GoalBody struct {
 	Name        string  `json:"name" minLength:"1" maxLength:"60"`
 	TargetCents int64   `json:"target_cents"`
 	TargetDate  *string `json:"target_date" required:"false" nullable:"true" format:"date"`
+}
+
+// GoalOut est l'objectif avec sa projection (EF-41).
+type GoalOut struct {
+	GoalBody
+	SavedCents       int64   `json:"saved_cents" doc:"Total épargné à ce jour"`
+	MonthlyPaceCents *int64  `json:"monthly_pace_cents" doc:"Moyenne des 3 derniers mois complets ; null s'il n'y a encore aucun mois complet"`
+	EstimatedMonth   *string `json:"estimated_month" doc:"AAAA-MM où la cible serait atteinte à ce rythme ; null sans estimation"`
 }
 
 type TransferOut struct {
@@ -189,7 +201,11 @@ func (s *Server) registerSavings(api huma.API) {
 				if p > 100 {
 					p = 100
 				}
-				out.Goal = &DashboardGoal{Name: gb.Name, TargetCents: gb.TargetCents, ProgressPercent: p, TargetDate: gb.TargetDate}
+				_, est, err := s.goalProjection(ctx, u.ID, t.TotalSavedCents, g.TargetCents, now)
+				if err != nil {
+					return nil, internalError(s.Log, "dashboard_projection", err)
+				}
+				out.Goal = &DashboardGoal{Name: gb.Name, TargetCents: gb.TargetCents, ProgressPercent: p, TargetDate: gb.TargetDate, EstimatedMonth: est}
 			} else if !errors.Is(err, pgx.ErrNoRows) {
 				return nil, internalError(s.Log, "dashboard_goal", err)
 			}
@@ -221,6 +237,8 @@ func (s *Server) registerSavings(api huma.API) {
 
 	type txIn struct {
 		Month  string `query:"month" doc:"AAAA-MM"`
+		Status string `query:"status" enum:"all,rounded,excluded" default:"all" doc:"rounded : transactions éligibles ; excluded : les autres (EF-39)"`
+		Q      string `query:"q" maxLength:"50" doc:"Texte cherché dans le libellé, sans tenir compte des accents ni de la casse ; 2 caractères au moins"`
 		Limit  int32  `query:"limit" default:"50" minimum:"1" maximum:"100"`
 		Cursor string `query:"cursor"`
 	}
@@ -234,6 +252,17 @@ func (s *Server) registerSavings(api huma.API) {
 					return nil, huma.Error422UnprocessableEntity("month doit être au format AAAA-MM")
 				}
 				p.Month = &m
+			}
+			if in.Status != "" && in.Status != "all" {
+				st := in.Status
+				p.Status = &st
+			}
+			if q := strings.TrimSpace(in.Q); q != "" {
+				if len([]rune(q)) < 2 {
+					return nil, huma.Error422UnprocessableEntity("q doit faire au moins 2 caractères")
+				}
+				lq := likePattern(q)
+				p.Q = &lq
 			}
 			var err error
 			if p.BeforeBookedOn, p.BeforeID, err = decodeCursor(in.Cursor); err != nil {
@@ -250,13 +279,7 @@ func (s *Server) registerSavings(api huma.API) {
 					out.NextCursor = encodeCursor(last.BookedOn, last.ID)
 					break
 				}
-				t := TransactionOut{ID: r.ID, BookedOn: r.BookedOn.Format(dateFmt), AmountCents: r.AmountCents,
-					Direction: r.Direction, Currency: r.Currency, Label: r.Label, IsEligible: r.IsEligible,
-					ExclusionReason: r.ExclusionReason}
-				if r.FinalCents != nil {
-					t.Rounding = &RoundingOut{BaseCents: *r.BaseCents, GrossCents: *r.GrossCents, FinalCents: *r.FinalCents, LimitedBy: r.LimitedBy}
-				}
-				out.Items = append(out.Items, t)
+				out.Items = append(out.Items, transactionOut(store.GetTransactionForUserRow(r)))
 			}
 			return &struct{ Body PageOut[TransactionOut] }{out}, nil
 		})
@@ -303,7 +326,7 @@ func (s *Server) registerSavings(api huma.API) {
 
 	goalTag := []string{"Objectif"}
 	huma.Register(api, huma.Operation{OperationID: "get-goal", Method: http.MethodGet, Path: "/goal", Summary: "Objectif d'épargne", Tags: goalTag},
-		func(ctx context.Context, _ *struct{}) (*struct{ Body GoalBody }, error) {
+		func(ctx context.Context, _ *struct{}) (*struct{ Body GoalOut }, error) {
 			g, err := s.App.Q.GetGoal(ctx, userFrom(ctx).ID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, huma.Error404NotFound("aucun objectif")
@@ -311,11 +334,15 @@ func (s *Server) registerSavings(api huma.API) {
 			if err != nil {
 				return nil, internalError(s.Log, "get_goal", err)
 			}
-			return &struct{ Body GoalBody }{goalBody(g)}, nil
+			out, err := s.goalOut(ctx, g)
+			if err != nil {
+				return nil, internalError(s.Log, "goal_projection", err)
+			}
+			return &struct{ Body GoalOut }{out}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "put-goal", Method: http.MethodPut, Path: "/goal", Summary: "Définir l'objectif", Tags: goalTag},
-		func(ctx context.Context, in *struct{ Body GoalBody }) (*struct{ Body GoalBody }, error) {
+		func(ctx context.Context, in *struct{ Body GoalBody }) (*struct{ Body GoalOut }, error) {
 			if in.Body.TargetCents <= 0 {
 				return nil, huma.Error422UnprocessableEntity("target_cents doit être strictement positif")
 			}
@@ -334,7 +361,11 @@ func (s *Server) registerSavings(api huma.API) {
 			if err != nil {
 				return nil, internalError(s.Log, "put_goal", err)
 			}
-			return &struct{ Body GoalBody }{goalBody(g)}, nil
+			out, err := s.goalOut(ctx, g)
+			if err != nil {
+				return nil, internalError(s.Log, "goal_projection", err)
+			}
+			return &struct{ Body GoalOut }{out}, nil
 		})
 
 	huma.Register(api, huma.Operation{OperationID: "delete-goal", Method: http.MethodDelete, Path: "/goal", DefaultStatus: http.StatusNoContent, Summary: "Supprimer l'objectif", Tags: goalTag},

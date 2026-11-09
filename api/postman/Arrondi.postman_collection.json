@@ -88,6 +88,11 @@
       "key": "callback_query",
       "value": "",
       "description": "Calculé automatiquement depuis callback_url"
+    },
+    {
+      "key": "transaction_id",
+      "value": "",
+      "description": "Rempli par « Transactions arrondies, avec recherche »"
     }
   ],
   "item": [
@@ -329,6 +334,88 @@
               }
             }
           ]
+        },
+        {
+          "name": "Chiffres du mois (EF-38)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/stats/month?month={{current_month}}",
+            "description": "Compteurs, sommes, exclusions par raison et 5 premiers commerçants (D-23)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('top_merchants présent', () => pm.expect(pm.response.json().top_merchants).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transactions arrondies, avec recherche (EF-39)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transactions?month={{current_month}}&status=rounded&q=carte",
+            "description": "status : all, rounded ou excluded. q : 2 caractères au moins, sans tenir compte des accents ni de la casse. Garde l'id de la première ligne dans transaction_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const it = pm.response.json().items || []; if (it.length) pm.collectionVariables.set('transaction_id', it[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Détail d'une transaction (EF-40)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transactions/{{transaction_id}}",
+            "description": "Arrondi avec palier et multiplicateur en vigueur au moment du calcul."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Exporter le mois en CSV (EF-44)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/transactions/export?month={{current_month}}",
+            "description": "Fichier CSV, point-virgule, UTF-8 avec BOM. Dans Postman : Save response > Save to a file."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -385,6 +472,26 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Statut 200 ou 422', () => pm.expect(pm.response.code).to.be.oneOf([200, 422]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aperçu de réglages (EF-42)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/settings/preview?step_cents=200&multiplier=2&tx_cap_cents=500&month_cap_cents=20000&amount_cents=2340",
+            "description": "N'enregistre rien. example : calcul sur le montant d'essai ; last_month : ce que ces réglages auraient donné sur le dernier mois complet."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
                 ]
               }
             }
@@ -740,6 +847,26 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Statut 202 ou 404 ou 409 ou 429', () => pm.expect(pm.response.code).to.be.oneOf([202, 404, 409, 429]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dernières synchronisations (EF-43)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/bank/sync-runs?limit=10",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Statut 200 ou 404', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
                 ]
               }
             }

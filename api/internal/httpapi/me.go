@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
@@ -116,8 +117,10 @@ func (s *Server) registerMe(api huma.API) {
 
 type AdminUserOut struct {
 	UserOut
-	IsActive         bool    `json:"is_active"`
-	ConnectionStatus *string `json:"connection_status" doc:"pending, active, expired, error, ou null sans connexion"`
+	IsActive          bool       `json:"is_active"`
+	ConnectionStatus  *string    `json:"connection_status" doc:"pending, active, expired, error, ou null sans connexion"`
+	ConsentValidUntil *time.Time `json:"consent_valid_until" doc:"Fin de l'accès bancaire ; null sans connexion active"`
+	LastSyncOkAt      *time.Time `json:"last_sync_ok_at"`
 }
 
 func requireAdmin(ctx context.Context) error {
@@ -142,6 +145,7 @@ func (s *Server) registerAdmin(api huma.API) {
 				out = append(out, AdminUserOut{
 					UserOut:  UserOut{ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, Role: r.Role},
 					IsActive: r.IsActive, ConnectionStatus: r.ConnectionStatus,
+					ConsentValidUntil: utc(r.ConsentValidUntil), LastSyncOkAt: utc(r.LastSyncOkAt),
 				})
 			}
 			return &struct{ Body []AdminUserOut }{out}, nil

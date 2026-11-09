@@ -33,8 +33,10 @@ Préfixe : `/api/v1`. JSON UTF-8. Le contrat complet (schémas, champs, contrain
 | `GET /me/export` | membre | 200 |
 | `GET /dashboard` | membre | 200 |
 | `GET /months` | membre | 200 |
-| `GET /transactions` | membre | 200 |
-| `GET /settings` · `PUT /settings` | membre | 200 |
+| `GET /transactions` · `GET /transactions/{id}` | membre | 200 |
+| `GET /transactions/export` | membre | 200 (CSV) |
+| `GET /stats/month` | membre | 200 |
+| `GET /settings` · `PUT /settings` · `GET /settings/preview` | membre | 200 |
 | `GET /goal` · `PUT /goal` · `DELETE /goal` | membre | 200 / 204 |
 | `GET /transfers` · `POST /transfers` · `DELETE /transfers/{id}` | membre | 200 / 201 / 204 |
 | `GET /bank/connection` · `DELETE /bank/connection` | membre | 200 / 204 |
@@ -43,6 +45,7 @@ Préfixe : `/api/v1`. JSON UTF-8. Le contrat complet (schémas, champs, contrain
 | `GET /bank/callback` | membre (navigateur) | 302 |
 | `PUT /bank/account` | membre | 204 |
 | `POST /bank/sync` | membre | 202 |
+| `GET /bank/sync-runs` | membre | 200 |
 | `GET /admin/users` · `POST /admin/users` · `PATCH /admin/users/{id}` | administrateur | 200 / 201 |
 
 ---
@@ -92,22 +95,23 @@ Téléchargement JSON (EF-29) : utilisateur, réglages, objectif, virements et t
 [ { "month": "2026-11", "saved_cents": 1235, "transferred_cents": 1500, "transactions_count": 18 } ]
 ```
 
-### `GET /transactions?month=2026-11&limit=50&cursor=…`
+### `GET /transactions?month=2026-11&status=rounded&q=total&limit=50&cursor=…`
 
 `month` facultatif (`AAAA-MM`, sinon 422), `limit` de 1 à 100. De la plus récente à la plus ancienne.
+`status` : `all` (défaut), `rounded` (transactions éligibles) ou `excluded`. `q` : texte cherché dans le libellé, 2 à 50 caractères, sans tenir compte des accents ni de la casse (422 sous 2 caractères). Tous les filtres se combinent (EF-39).
 
 ```json
 {
   "items": [
     {
       "id": "8b0c…", "booked_on": "2026-11-05", "amount_cents": 6937, "direction": "debit",
-      "currency": "EUR", "label": "CARTE 04/11/26 TOTAL 4 CB*6804",
+      "currency": "EUR", "label": "CARTE 04/11/26 TOTAL 4 CB*6804", "merchant": "Total 4",
       "is_eligible": true, "exclusion_reason": null,
-      "rounding": { "base_cents": 63, "gross_cents": 63, "final_cents": 63, "limited_by": null }
+      "rounding": { "step_cents": 100, "multiplier": 1, "base_cents": 63, "gross_cents": 63, "final_cents": 63, "limited_by": null }
     },
     {
       "id": "f3a1…", "booked_on": "2026-11-05", "amount_cents": 10542, "direction": "debit",
-      "currency": "EUR", "label": "PRLV SEPA MACIF", "is_eligible": false,
+      "currency": "EUR", "label": "PRLV SEPA MACIF", "merchant": "Macif", "is_eligible": false,
       "exclusion_reason": "not_card", "rounding": null
     }
   ],
@@ -116,6 +120,33 @@ Téléchargement JSON (EF-29) : utilisateur, réglages, objectif, virements et t
 ```
 
 `limited_by` : `null`, `tx_cap` (plafond par transaction) ou `monthly` (plafond mensuel). Motifs d'exclusion : voir [architecture](architecture.md#éligibilité-section-42).
+`merchant` : nom du commerçant tiré du libellé par le profil de banque (D-23). `step_cents` et `multiplier` : réglages en vigueur au moment du calcul.
+
+### `GET /transactions/{id}`
+
+Une transaction, même forme qu'une ligne de la liste (EF-40). 404 si elle n'appartient pas à l'utilisateur.
+
+### `GET /transactions/export?month=2026-11`
+
+Fichier CSV du mois (EF-44) : séparateur `;`, UTF-8 avec BOM (pour Excel), montants à la française (`-69,37`). Colonnes : Date, Libellé, Commerçant, Montant (€), Arrondi (€), Raison d'exclusion. `month` obligatoire, sinon 422.
+
+### `GET /stats/month?month=2026-11`
+
+Chiffres d'un mois (EF-38), mois en cours par défaut :
+
+```json
+{
+  "month": "2026-11", "transactions_count": 30, "card_payments_count": 24, "rounded_count": 18,
+  "excluded_count": 6, "excluded_by_reason": { "not_card": 3, "credit": 2, "cash_withdrawal": 1 },
+  "capped_count": 0, "average_rounding_cents": 206, "card_spending_cents": 64218, "saved_cents": 3710,
+  "previous_month_same_day_cents": 4120,
+  "top_merchants": [ { "merchant": "Supermarche Centre", "count": 4, "saved_cents": 982 } ]
+}
+```
+
+- `card_payments_count` : transactions éligibles ; `rounded_count` : celles dont l'arrondi gardé est supérieur à 0.
+- `previous_month_same_day_cents` : pour le mois en cours, l'épargne du mois précédent jusqu'au même jour ; pour un mois passé, tout le mois précédent.
+- `top_merchants` : 5 au plus, par arrondi cumulé décroissant.
 
 ## Réglages
 
@@ -134,6 +165,19 @@ Téléchargement JSON (EF-29) : utilisateur, réglages, objectif, virements et t
 
 Hors plage : 422. Pas d'effet rétroactif (D-08).
 
+### `GET /settings/preview?step_cents=200&multiplier=2&tx_cap_cents=500&month_cap_cents=20000&amount_cents=2340`
+
+Aperçu de réglages, sans rien enregistrer (EF-42). Mêmes plages que `PUT /settings` (422 sinon) ; `month_cap_cents` absent ou 0 = aucun plafond ; `amount_cents` = montant d'essai (2340 par défaut).
+
+```json
+{
+  "example": { "amount_cents": 2340, "base_cents": 60, "multiplied_cents": 120, "final_cents": 120, "limited_by": null },
+  "last_month": { "month": "2026-10", "saved_cents": 13460, "actual_saved_cents": 9870, "card_payments_count": 71 }
+}
+```
+
+`last_month` rejoue le moteur d'arrondis sur les paiements éligibles du dernier mois complet, dans l'ordre de la synchro, plafond mensuel compris.
+
 ## Objectif
 
 `GET /goal` (404 s'il n'y en a pas) · `PUT /goal` · `DELETE /goal` (204).
@@ -143,6 +187,15 @@ Hors plage : 422. Pas d'effet rétroactif (D-08).
 ```
 
 `target_cents` > 0, `name` de 1 à 60 caractères, `target_date` facultative.
+
+La réponse de `GET /goal` et `PUT /goal` ajoute la projection (EF-41) :
+
+```json
+{ "name": "Apport", "target_cents": 200000, "target_date": "2027-09-01",
+  "saved_cents": 128450, "monthly_pace_cents": 12323, "estimated_month": "2027-05" }
+```
+
+`monthly_pace_cents` : moyenne des 3 derniers mois complets depuis l'activation (`null` s'il n'y en a encore aucun). `estimated_month` : mois où le cumul atteint la cible à ce rythme (`null` sans estimation, mois en cours si la cible est déjà atteinte). `GET /dashboard` reprend `estimated_month` dans `goal`.
 
 ## Virements
 
@@ -224,6 +277,15 @@ Désigne le compte suivi. 204 ; 404 si le compte n'est pas le tien.
 
 Lance une synchronisation en arrière-plan. 202 `{ "status": "accepted" }` ; 409 si la connexion n'est pas active ou sans compte suivi ; 429 au-delà de 1 par heure ou 4 sur 24 heures (EF-10). Relire `GET /dashboard` ou `GET /bank/connection` quelques secondes après.
 
+### `GET /bank/sync-runs?limit=10`
+
+Les dernières synchronisations (EF-43), de la plus récente à la plus ancienne ; `limit` de 1 à 50. 404 sans connexion.
+
+```json
+[ { "started_at": "2026-11-09T05:30:00Z", "finished_at": "2026-11-09T05:30:04Z", "trigger": "scheduled",
+    "status": "success", "fetched": 12, "inserted": 3, "error_code": null } ]
+```
+
 ### `DELETE /bank/connection`
 
 Supprime la connexion, ses comptes, transactions et arrondis (EF-08). 204.
@@ -234,7 +296,7 @@ Réservé au rôle `admin` (403 sinon).
 
 | Route | Corps | Réponse |
 | --- | --- | --- |
-| `GET /admin/users` | – | Liste : `id`, `email`, `display_name`, `role`, `is_active`, `connection_status` |
+| `GET /admin/users` | – | Liste : `id`, `email`, `display_name`, `role`, `is_active`, `connection_status`, `consent_valid_until`, `last_sync_ok_at` (aucun montant, D-12) |
 | `POST /admin/users` | `{ "email": "…", "display_name": "…" }` | 201 ; rôle toujours `member` ; réglages par défaut créés ; 409 si l'email existe |
 | `PATCH /admin/users/{id}` | `{ "is_active": false }` | 200 ; 409 si l'administrateur se désactive lui-même |
 

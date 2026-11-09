@@ -208,10 +208,68 @@ func (q *Queries) GetAccountForUser(ctx context.Context, arg GetAccountForUserPa
 	return i, err
 }
 
-const listTransactionsPage = `-- name: ListTransactionsPage :many
-SELECT t.id, t.booked_on, t.amount_cents, t.direction, t.currency, t.label,
+const getTransactionForUser = `-- name: GetTransactionForUser :one
+SELECT t.id, t.booked_on, t.amount_cents, t.direction, t.currency, t.label, t.merchant,
        t.is_eligible, t.exclusion_reason,
-       r.base_cents, r.gross_cents, r.final_cents, r.limited_by
+       r.step_cents, r.multiplier, r.base_cents, r.gross_cents, r.final_cents, r.limited_by
+FROM transactions t
+JOIN bank_accounts a    ON a.id = t.account_id
+JOIN bank_connections c ON c.id = a.connection_id
+LEFT JOIN roundings r   ON r.transaction_id = t.id
+WHERE c.user_id = $1 AND t.id = $2
+`
+
+type GetTransactionForUserParams struct {
+	UserID uuid.UUID
+	ID     uuid.UUID
+}
+
+type GetTransactionForUserRow struct {
+	ID              uuid.UUID
+	BookedOn        time.Time
+	AmountCents     int64
+	Direction       string
+	Currency        string
+	Label           string
+	Merchant        string
+	IsEligible      bool
+	ExclusionReason *string
+	StepCents       *int32
+	Multiplier      *int32
+	BaseCents       *int32
+	GrossCents      *int64
+	FinalCents      *int64
+	LimitedBy       *string
+}
+
+// GET /transactions/{id} : 404 si la transaction n'appartient pas à l'utilisateur.
+func (q *Queries) GetTransactionForUser(ctx context.Context, arg GetTransactionForUserParams) (GetTransactionForUserRow, error) {
+	row := q.db.QueryRow(ctx, getTransactionForUser, arg.UserID, arg.ID)
+	var i GetTransactionForUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.BookedOn,
+		&i.AmountCents,
+		&i.Direction,
+		&i.Currency,
+		&i.Label,
+		&i.Merchant,
+		&i.IsEligible,
+		&i.ExclusionReason,
+		&i.StepCents,
+		&i.Multiplier,
+		&i.BaseCents,
+		&i.GrossCents,
+		&i.FinalCents,
+		&i.LimitedBy,
+	)
+	return i, err
+}
+
+const listTransactionsPage = `-- name: ListTransactionsPage :many
+SELECT t.id, t.booked_on, t.amount_cents, t.direction, t.currency, t.label, t.merchant,
+       t.is_eligible, t.exclusion_reason,
+       r.step_cents, r.multiplier, r.base_cents, r.gross_cents, r.final_cents, r.limited_by
 FROM transactions t
 JOIN bank_accounts a    ON a.id = t.account_id
 JOIN bank_connections c ON c.id = a.connection_id
@@ -219,15 +277,23 @@ LEFT JOIN roundings r   ON r.transaction_id = t.id
 WHERE c.user_id = $1
   AND ($2::date IS NULL
        OR (t.booked_on >= $2::date AND t.booked_on < ($2::date + interval '1 month')))
-  AND ($3::date IS NULL
-       OR (t.booked_on, t.id) < ($3::date, $4::uuid))
+  AND ($3::text IS NULL
+       OR ($3::text = 'rounded' AND t.is_eligible)
+       OR ($3::text = 'excluded' AND NOT t.is_eligible))
+  -- q arrive déjà échappé pour LIKE (\, %, _) et sans accents ni majuscules.
+  AND ($4::text IS NULL
+       OR unaccent(lower(t.label)) LIKE '%' || $4::text || '%')
+  AND ($5::date IS NULL
+       OR (t.booked_on, t.id) < ($5::date, $6::uuid))
 ORDER BY t.booked_on DESC, t.id DESC
-LIMIT $5
+LIMIT $7
 `
 
 type ListTransactionsPageParams struct {
 	UserID         uuid.UUID
 	Month          *time.Time
+	Status         *string
+	Q              *string
 	BeforeBookedOn *time.Time
 	BeforeID       *uuid.UUID
 	PageSize       int32
@@ -240,19 +306,25 @@ type ListTransactionsPageRow struct {
 	Direction       string
 	Currency        string
 	Label           string
+	Merchant        string
 	IsEligible      bool
 	ExclusionReason *string
+	StepCents       *int32
+	Multiplier      *int32
 	BaseCents       *int32
 	GrossCents      *int64
 	FinalCents      *int64
 	LimitedBy       *string
 }
 
-// GET /transactions : filtre facultatif sur un mois, pagination par curseur (booked_on, id).
+// GET /transactions : filtres facultatifs (mois, arrondies ou exclues, texte du libellé),
+// pagination par curseur (booked_on, id).
 func (q *Queries) ListTransactionsPage(ctx context.Context, arg ListTransactionsPageParams) ([]ListTransactionsPageRow, error) {
 	rows, err := q.db.Query(ctx, listTransactionsPage,
 		arg.UserID,
 		arg.Month,
+		arg.Status,
+		arg.Q,
 		arg.BeforeBookedOn,
 		arg.BeforeID,
 		arg.PageSize,
@@ -271,8 +343,11 @@ func (q *Queries) ListTransactionsPage(ctx context.Context, arg ListTransactions
 			&i.Direction,
 			&i.Currency,
 			&i.Label,
+			&i.Merchant,
 			&i.IsEligible,
 			&i.ExclusionReason,
+			&i.StepCents,
+			&i.Multiplier,
 			&i.BaseCents,
 			&i.GrossCents,
 			&i.FinalCents,
@@ -336,18 +411,21 @@ func (q *Queries) ListTransfersPage(ctx context.Context, arg ListTransfersPagePa
 }
 
 const listUsersWithConnection = `-- name: ListUsersWithConnection :many
-SELECT u.id, u.email, u.display_name, u.role, u.is_active, c.status AS connection_status
+SELECT u.id, u.email, u.display_name, u.role, u.is_active, c.status AS connection_status,
+       c.consent_valid_until, c.last_sync_ok_at
 FROM users u LEFT JOIN bank_connections c ON c.user_id = u.id
 ORDER BY u.created_at
 `
 
 type ListUsersWithConnectionRow struct {
-	ID               uuid.UUID
-	Email            string
-	DisplayName      string
-	Role             string
-	IsActive         bool
-	ConnectionStatus *string
+	ID                uuid.UUID
+	Email             string
+	DisplayName       string
+	Role              string
+	IsActive          bool
+	ConnectionStatus  *string
+	ConsentValidUntil *time.Time
+	LastSyncOkAt      *time.Time
 }
 
 func (q *Queries) ListUsersWithConnection(ctx context.Context) ([]ListUsersWithConnectionRow, error) {
@@ -366,6 +444,8 @@ func (q *Queries) ListUsersWithConnection(ctx context.Context) ([]ListUsersWithC
 			&i.Role,
 			&i.IsActive,
 			&i.ConnectionStatus,
+			&i.ConsentValidUntil,
+			&i.LastSyncOkAt,
 		); err != nil {
 			return nil, err
 		}

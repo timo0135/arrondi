@@ -13,7 +13,7 @@ import (
 )
 
 const getTransaction = `-- name: GetTransaction :one
-SELECT t.id, t.account_id, t.external_id, t.booked_on, t.amount_cents, t.direction, t.currency, t.label, t.bank_tx_code, t.is_eligible, t.exclusion_reason, t.raw, t.created_at
+SELECT t.id, t.account_id, t.external_id, t.booked_on, t.amount_cents, t.direction, t.currency, t.label, t.bank_tx_code, t.is_eligible, t.exclusion_reason, t.raw, t.created_at, t.merchant
 FROM transactions t
 JOIN bank_accounts a    ON a.id = t.account_id
 JOIN bank_connections c ON c.id = a.connection_id
@@ -43,6 +43,7 @@ func (q *Queries) GetTransaction(ctx context.Context, arg GetTransactionParams) 
 		&i.ExclusionReason,
 		&i.Raw,
 		&i.CreatedAt,
+		&i.Merchant,
 	)
 	return i, err
 }
@@ -84,10 +85,10 @@ func (q *Queries) InsertRounding(ctx context.Context, arg InsertRoundingParams) 
 
 const insertTransaction = `-- name: InsertTransaction :one
 INSERT INTO transactions (account_id, external_id, booked_on, amount_cents, direction, currency,
-                          label, bank_tx_code, is_eligible, exclusion_reason, raw)
+                          label, merchant, bank_tx_code, is_eligible, exclusion_reason, raw)
 VALUES ($1, $2, $3, $4,
-        $5, $6, $7, $8,
-        $9, $10, $11)
+        $5, $6, $7, $8, $9,
+        $10, $11, $12)
 ON CONFLICT (account_id, external_id) DO NOTHING
 RETURNING id
 `
@@ -100,6 +101,7 @@ type InsertTransactionParams struct {
 	Direction       string
 	Currency        string
 	Label           string
+	Merchant        string
 	BankTxCode      *string
 	IsEligible      bool
 	ExclusionReason *string
@@ -116,6 +118,7 @@ func (q *Queries) InsertTransaction(ctx context.Context, arg InsertTransactionPa
 		arg.Direction,
 		arg.Currency,
 		arg.Label,
+		arg.Merchant,
 		arg.BankTxCode,
 		arg.IsEligible,
 		arg.ExclusionReason,

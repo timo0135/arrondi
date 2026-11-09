@@ -55,6 +55,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerMe(api)
 	s.registerSavings(api)
 	s.registerBank(api)
+	s.registerStats(api)
 	s.registerAdmin(api)
 	if s.Dev {
 		s.registerDev(api)

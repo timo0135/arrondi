@@ -350,6 +350,62 @@ func TestAPI_ParcoursComplet(t *testing.T) {
 		t.Fatalf("backfill %+v", bf)
 	}
 
+	// Version ordinateur (EF-38 à EF-44).
+	month := time.Now().Format("2006-01")
+	ms := decode[MonthStatsOut](t, c.expect("GET", "/api/v1/stats/month?month="+month, nil, 200))
+	found := map[string]int64{}
+	for _, m := range ms.TopMerchants {
+		found[m.Merchant] = m.SavedCents
+	}
+	if found["Carte Total"] != 126 || found["Carte Leclerc"] != 46 || ms.ExcludedByReason["not_card"] != 1 || ms.RoundedCount < 2 {
+		t.Fatalf("stats du mois %+v", ms)
+	}
+	c.expect("GET", "/api/v1/stats/month?month=2026-13", nil, 422)
+	ex := decode[PageOut[TransactionOut]](t, c.expect("GET", "/api/v1/transactions?status=excluded&q=m%C3%A2cif", nil, 200))
+	if len(ex.Items) != 1 || ex.Items[0].Merchant != "Macif" {
+		t.Fatalf("filtre exclues + recherche %+v", ex.Items)
+	}
+	if r := decode[PageOut[TransactionOut]](t, c.expect("GET", "/api/v1/transactions?status=rounded&q=macif", nil, 200)); len(r.Items) != 0 {
+		t.Fatalf("filtre arrondies %+v", r.Items)
+	}
+	c.expect("GET", "/api/v1/transactions?q=x", nil, 422)
+	c.expect("GET", "/api/v1/transactions?q=100%25", nil, 200) // % échappé : aucune erreur SQL
+	one := decode[PageOut[TransactionOut]](t, c.expect("GET", "/api/v1/transactions?q=total", nil, 200))
+	if len(one.Items) != 1 {
+		t.Fatalf("recherche total %+v", one.Items)
+	}
+	d := decode[TransactionOut](t, c.expect("GET", "/api/v1/transactions/"+one.Items[0].ID.String(), nil, 200))
+	if d.Rounding == nil || d.Rounding.StepCents != 100 || d.Rounding.Multiplier != 2 || d.Rounding.FinalCents != 126 {
+		t.Fatalf("détail %+v / %+v", d, d.Rounding)
+	}
+	c.expect("GET", "/api/v1/transactions/"+uuid.NewString(), nil, 404)
+	res, body = c.do("GET", "/api/v1/transactions/export?month="+month, nil, false)
+	if res.StatusCode != 200 || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/csv") ||
+		!bytes.HasPrefix(body, []byte("\xEF\xBB\xBF")) || !bytes.Contains(body, []byte("Carte Total;-69,37;1,26;")) {
+		t.Fatalf("export CSV %d %q", res.StatusCode, body)
+	}
+	pv := decode[PreviewOut](t, c.expect("GET", "/api/v1/settings/preview?step_cents=100&multiplier=2&tx_cap_cents=2000", nil, 200))
+	if pv.Example.AmountCents != 2340 || pv.Example.BaseCents != 60 || pv.Example.MultipliedCents != 120 || pv.Example.FinalCents != 120 {
+		t.Fatalf("aperçu %+v", pv)
+	}
+	c.expect("GET", "/api/v1/settings/preview?step_cents=33&multiplier=2&tx_cap_cents=2000", nil, 422)
+	if runs := decode[[]SyncRunOut](t, c.expect("GET", "/api/v1/bank/sync-runs", nil, 200)); len(runs) == 0 || runs[0].Status != "success" {
+		t.Fatalf("synchros %+v", runs)
+	}
+	g := decode[GoalOut](t, c.expect("GET", "/api/v1/goal", nil, 200))
+	if g.SavedCents != 312 || g.MonthlyPaceCents != nil || g.EstimatedMonth != nil {
+		t.Fatalf("objectif et projection %+v", g)
+	}
+	var me *AdminUserOut
+	for _, u := range decode[[]AdminUserOut](t, c.expect("GET", "/api/v1/admin/users", nil, 200)) {
+		if u.ID == admin.ID {
+			me = &u
+		}
+	}
+	if me == nil || me.LastSyncOkAt == nil || me.ConsentValidUntil == nil {
+		t.Fatalf("admin : dernière synchro %+v", me)
+	}
+
 	// Suppression de la connexion : tout part en cascade.
 	c.expect("DELETE", "/api/v1/bank/connection", nil, 204)
 	if d := decode[DashboardOut](t, c.expect("GET", "/api/v1/dashboard", nil, 200)); d.TotalSavedCents != 0 || d.Bank != nil {

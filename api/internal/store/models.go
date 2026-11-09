@@ -99,6 +99,7 @@ type Transaction struct {
 	ExclusionReason *string
 	Raw             []byte
 	CreatedAt       time.Time
+	Merchant        string
 }
 
 type Transfer struct {

@@ -117,6 +117,7 @@ func (t syncTx) InsertTransaction(ctx context.Context, n syncer.NewTransaction) 
 		Direction:       n.Direction,
 		Currency:        n.Currency,
 		Label:           n.Label,
+		Merchant:        n.Merchant,
 		IsEligible:      n.IsEligible,
 		ExclusionReason: strPtr(n.ExclusionReason),
 		Raw:             n.Raw,

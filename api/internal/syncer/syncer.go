@@ -52,6 +52,7 @@ type NewTransaction struct {
 	Direction       string // "debit" | "credit"
 	Currency        string
 	Label           string
+	Merchant        string
 	IsEligible      bool
 	ExclusionReason string // "" si éligible
 	Raw             json.RawMessage
@@ -219,6 +220,7 @@ func (s *Service) run(ctx context.Context, c Connection) (Result, error) {
 				Direction:       direction,
 				Currency:        e.tx.Currency,
 				Label:           e.tx.Label,
+				Merchant:        e.tx.Merchant,
 				IsEligible:      reason == "",
 				ExclusionReason: reason,
 				Raw:             e.raw,
